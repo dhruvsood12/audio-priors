@@ -8,8 +8,14 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+try:
+    from IPython.display import display
+except ImportError:
 
-# Numeric audio features used in modeling (mirrors src.features.DEFAULT_AUDIO_FEATURES)
+    def display(obj: Any) -> None:  # noqa: A001
+        print(obj)
+
+
 MODEL_NUMERIC_FEATURES = [
     "danceability",
     "energy",
@@ -40,30 +46,36 @@ EXPECTED_COLUMNS = [
     "duration_ms",
 ]
 
-# Alternate names (lowercase keys) -> canonical name
-COLUMN_ALIASES: dict[str, str] = {
+# Normalized column name (after standardize_column_names) -> canonical name.
+# Extend as needed for new datasets.
+COLUMN_MAP: dict[str, str] = {
     "track": "track_name",
     "name": "track_name",
     "song": "track_name",
     "title": "track_name",
     "trackname": "track_name",
+    "song_name": "track_name",
+    "track_name": "track_name",
     "artist": "artist_name",
     "artists": "artist_name",
     "artistname": "artist_name",
+    "artist_name": "artist_name",
     "genres": "genre",
     "track_genre": "genre",
+    "genre_name": "genre",
     "duration": "duration_ms",
     "durationms": "duration_ms",
     "length_ms": "duration_ms",
+    "length": "duration_ms",
 }
 
 
-def load_data(path: str | Path) -> pd.DataFrame:
+def load_data(path: str | Path, **kwargs: Any) -> pd.DataFrame:
     """Load CSV from path."""
     p = Path(path)
     if not p.is_file():
         raise FileNotFoundError(f"Data file not found: {p.resolve()}")
-    return pd.read_csv(p)
+    return pd.read_csv(p, encoding="utf-8", low_memory=False, **kwargs)
 
 
 def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -74,24 +86,75 @@ def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def map_expected_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Rename columns to canonical names using aliases and fuzzy matching."""
+    """
+    Rename columns to canonical names:
+    1) standardize column names
+    2) apply COLUMN_MAP
+    3) match remaining columns to EXPECTED_COLUMNS by case-insensitive equality
+    """
     out = standardize_column_names(df)
     rename_map: dict[str, str] = {}
     cols = list(out.columns)
-    lower_to_actual = {c.lower(): c for c in cols}
+    expected_lower = {e.lower(): e for e in EXPECTED_COLUMNS}
 
     for col in cols:
         low = col.lower()
-        if low in COLUMN_ALIASES:
-            target = COLUMN_ALIASES[low]
-            if target not in rename_map.values() or col == lower_to_actual.get(low, col):
+        if low in COLUMN_MAP:
+            target = COLUMN_MAP[low]
+            if col != target:
                 rename_map[col] = target
-        elif low in {e.lower() for e in EXPECTED_COLUMNS}:
-            canon = next(e for e in EXPECTED_COLUMNS if e.lower() == low)
-            rename_map[col] = canon
+        elif low in expected_lower:
+            canon = expected_lower[low]
+            if col != canon:
+                rename_map[col] = canon
 
     out = out.rename(columns=rename_map)
+    out = out.loc[:, ~out.columns.duplicated()].copy()
     return out
+
+
+def fix_duration_units(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """
+    Convert duration_sec to duration_ms if present.
+    If duration_ms looks like seconds (max in typical 60–600 s range), convert to ms.
+    """
+    out = df.copy()
+    notes: dict[str, Any] = {}
+
+    if "duration_sec" in out.columns:
+        sec = pd.to_numeric(out["duration_sec"], errors="coerce")
+        if "duration_ms" in out.columns:
+            out = out.drop(columns=["duration_sec"])
+            notes["duration_sec_dropped_duration_ms_present"] = True
+        else:
+            out["duration_ms"] = sec * 1000.0
+            out = out.drop(columns=["duration_sec"])
+            notes["duration_sec_converted_to_duration_ms"] = True
+
+    if "duration_ms" not in out.columns:
+        return out, notes
+
+    s = pd.to_numeric(out["duration_ms"], errors="coerce")
+    max_v = float(s.max()) if len(s) else 0.0
+    if max_v > 0 and max_v < 25_000.0:
+        out["duration_ms"] = s * 1000.0
+        notes["duration_values_looked_like_seconds_scaled_to_ms"] = True
+    return out, notes
+
+
+def summarize_raw(df: pd.DataFrame) -> None:
+    """Print column names, head, info, missing counts (for notebook inspection)."""
+    print("Columns:", list(df.columns))
+    print("Shape:", df.shape)
+    display(pd.DataFrame({"missing": df.isna().sum(), "pct": (df.isna().mean() * 100).round(2)}))
+    pd.set_option("display.max_columns", 30)
+    print(df.head())
+    print(df.info())
+
+
+def summarize_raw_no_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Return missingness summary for non-notebook use."""
+    return pd.DataFrame({"missing": df.isna().sum(), "pct": (df.isna().mean() * 100).round(2)})
 
 
 def remove_duplicates(
@@ -115,11 +178,11 @@ def handle_missing_values(
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
     Drop rows with missing values in required columns.
-    If required_cols is None, uses core modeling columns that exist in df.
+    Optional columns (genre, track_name, artist_name) are not required.
     """
     if required_cols is None:
-        core = ["popularity"] + MODEL_NUMERIC_FEATURES
-        required_cols = [c for c in core if c in df.columns]
+        core = ["popularity"] + [c for c in MODEL_NUMERIC_FEATURES if c in df.columns]
+        required_cols = list(dict.fromkeys(core))
 
     missing_before = df[required_cols].isna().sum()
     mask = df[required_cols].notna().all(axis=1)
@@ -129,8 +192,8 @@ def handle_missing_values(
 
 def validate_ranges(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
-    Clip or filter invalid ranges. Popularity 0-100; Spotify features typically 0-1;
-    duration_ms must be positive.
+    Popularity 0–100; Spotify features 0–1; duration_ms > 0.
+    Invalid 0–1 features set to NaN; bad popularity/duration rows dropped.
     """
     out = df.copy()
     notes: dict[str, Any] = {}
@@ -202,3 +265,41 @@ def create_sticky_label(
 def save_processed_data(df: pd.DataFrame, path: str | Path) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False)
+
+
+def clean_dataframe(
+    df: pd.DataFrame,
+    *,
+    drop_after_validate: bool = True,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """
+    Full pipeline: map columns → fix duration units → dedupe → drop NA on required
+    → validate ranges → drop NA on numeric features again → popularity_z → sticky.
+
+    Returns (cleaned_df, stats_dict).
+    """
+    stats: dict[str, Any] = {}
+    out = map_expected_columns(df)
+    out, dur_notes = fix_duration_units(out)
+    stats.update(dur_notes)
+
+    out, n_dup = remove_duplicates(out)
+    stats["duplicates_removed"] = n_dup
+
+    out, missing_report = handle_missing_values(out)
+    stats["missingness_before_drop"] = missing_report.to_dict()
+
+    out, val_notes = validate_ranges(out)
+    stats["validation_notes"] = val_notes
+
+    if drop_after_validate:
+        core = [c for c in MODEL_NUMERIC_FEATURES if c in out.columns]
+        out = out.dropna(subset=core).reset_index(drop=True)
+
+    out = create_standardized_popularity(out)
+    out, thresh = create_sticky_label(out, percentile=0.8)
+    stats["sticky_threshold"] = thresh
+    stats["sticky_balance"] = float(out["sticky"].mean()) if len(out) else 0.0
+    stats["n_rows_final"] = len(out)
+
+    return out, stats

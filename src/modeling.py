@@ -16,6 +16,7 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
+from sklearn.model_selection import train_test_split
 
 
 def train_logistic_regression(
@@ -125,3 +126,23 @@ def confusion_matrix_array(
 ) -> np.ndarray:
     y_pred = model.predict(X_test)
     return confusion_matrix(y_test, y_pred)
+
+
+def train_test_split_stratified(
+    X: pd.DataFrame,
+    y: pd.Series,
+    *,
+    test_size: float = 0.2,
+    random_state: int = 42,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+    """Stratified split when possible; falls back if a class is too small."""
+    if y.nunique() < 2:
+        raise ValueError("Target needs at least two classes for classification.")
+    try:
+        return train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y
+        )
+    except ValueError:
+        return train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=None
+        )
