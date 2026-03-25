@@ -1,5 +1,7 @@
 # What Makes a Song Sticky?
 
+**Layout:** This repository is the project root—`README.md`, `notebooks/`, and `src/` sit at the top level so GitHub shows the full README and file tree on the main page.
+
 End-to-end data science project: **which Spotify audio features are associated with highly “sticky” songs** when stickiness is approximated with **public popularity** (not individual replay or skip data).
 
 ---
@@ -49,7 +51,7 @@ Column names are normalized in code; minor naming variants are handled in `src/d
 ## Repository Structure
 
 ```
-song-stickiness-project/
+SongAddiction/                    # repository root (this project)
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
@@ -127,14 +129,15 @@ Stating these limits is part of the analysis, not an apology.
 **Prerequisites:** Python 3.10+ recommended.
 
 ```bash
-cd song-stickiness-project
+git clone https://github.com/dhruvsood12/SongAddiction.git
+cd SongAddiction
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 1. Copy your CSV to `data/raw/spotify_tracks.csv`.  
-2. Launch Jupyter from the **project root** (`song-stickiness-project`):  
+2. Launch Jupyter from this **repository root** (the folder that contains `README.md` and `notebooks/`):  
    `jupyter lab` or `jupyter notebook`  
 3. Run notebooks **in order:** `01_data_cleaning.ipynb` → `02_eda.ipynb` → `03_modeling.ipynb`.
 
