@@ -34,7 +34,7 @@ Place your CSV at `data/raw/spotify_tracks.csv`. The pipeline expects (or maps t
 | Target proxy | `popularity` (0–100) |
 | Audio features | `danceability`, `energy`, `valence`, `tempo`, `loudness`, `speechiness`, `acousticness`, `instrumentalness`, `liveness`, `duration_ms` |
 
-Column names are normalized in code; minor naming variants are handled in `src/data_prep.py`.
+Column names are normalized in code; alternate names are mapped via **`COLUMN_MAP`** in [`src/data_prep.py`](src/data_prep.py) (e.g. `artists` → `artist_name`, `duration` → `duration_ms`).
 
 ---
 
@@ -98,7 +98,20 @@ Optional (if `genre` is present): average popularity by genre, sticky rate by ge
 
 ## Main Findings
 
-**Run the notebooks on your dataset** to generate metrics and figures. After execution, summarize ROC-AUC, F1, and the main coefficient/importance directions here. Until then: *results populate from `outputs/tables/model_metrics.csv` and the modeling notebook after a full run.*
+_Updated from the last full notebook run (`outputs/tables/model_metrics.csv`, figures in `outputs/figures/`). Re-run `01` → `02` → `03` after replacing `data/raw/spotify_tracks.csv` to refresh._
+
+**Models (hold-out test set, 80/20 stratified split):**
+
+| Model | ROC-AUC | F1 | Notes |
+|-------|---------|-----|--------|
+| **Logistic regression** | **~0.59** | **~0.33** | `class_weight='balanced'`; better discrimination on the minority (sticky) class. |
+| Random forest | ~0.55 | ~0.02 | High accuracy largely reflects majority-class prediction; weak recall on sticky. |
+
+**Takeaway:** For this sample, **logistic regression** is the more useful baseline for **ranking** sticky vs not (ROC-AUC / F1). Performance is **modest** — expected when predicting market popularity from audio alone.
+
+**EDA (linear correlation with popularity):** **Danceability** and **energy** show the clearest positive associations; **valence** is near zero; **duration** is negligible — all **weak** correlations, so conclusions stay tentative.
+
+**Top features (logistic coefficients, direction toward “sticky”):** Among the largest positive drivers in this run are **danceability** and **energy**; **loudness** and **instrumentalness** lean negative (see `outputs/figures/09_logistic_coefficients.png`). Random forest importance is in `10_rf_feature_importance.png` — use alongside coefficients, not as a duplicate story.
 
 ---
 
@@ -136,12 +149,14 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-1. Copy your CSV to `data/raw/spotify_tracks.csv`.  
+1. Place your CSV at `data/raw/spotify_tracks.csv`. If the file is missing, you can generate a small demo dataset: `python scripts/make_demo_data.py`.  
 2. Launch Jupyter from this **repository root** (the folder that contains `README.md` and `notebooks/`):  
    `jupyter lab` or `jupyter notebook`  
 3. Run notebooks **in order:** `01_data_cleaning.ipynb` → `02_eda.ipynb` → `03_modeling.ipynb`.
 
 Figures write to `outputs/figures/`; the model comparison table writes to `outputs/tables/model_metrics.csv`.
+
+**Headless / CI:** If `plt.show()` crashes (no display), run with a non-interactive backend, e.g. `MPLBACKEND=Agg jupyter nbconvert --execute notebooks/01_data_cleaning.ipynb --inplace` (repeat for `02`, `03`).
 
 ---
 

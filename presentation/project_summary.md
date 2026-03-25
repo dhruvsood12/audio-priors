@@ -2,50 +2,51 @@
 
 ## Goal
 
-Understand which **Spotify audio features** are associated with songs that are especially **sticky** in aggregate, where stickiness is approximated with a **public proxy** (Spotify **popularity**), not individual replay, skip, or save behavior.
+Identify which **Spotify audio features** co-occur with **high popularity** in a track-level dataset, using popularity as a **public proxy** for broad replayability (“stickiness”). This is **not** a measure of addiction, individual replays, skips, or saves.
 
 ## Dataset
 
-- **Source (expected):** `data/raw/spotify_tracks.csv` (you provide).
-- **Key fields:** track/artist metadata (optional `genre`), `popularity` (0–100), and standard Spotify audio features (e.g. danceability, energy, valence, tempo, loudness, speechiness, acousticness, instrumentalness, liveness, `duration_ms`).
+- **File:** `data/raw/spotify_tracks.csv` (track/artist/genre metadata where available, `popularity` 0–100, standard Spotify audio features, `duration_ms`).
+- **Cleaning:** Column harmonization via `COLUMN_MAP` in `src/data_prep.py`, duplicate removal, missing-value drops on required numeric fields, range checks, optional duration unit fix (seconds → ms).
 
 ## Stickiness Definition
 
-- **Continuous:** `popularity_z` — z-score of `popularity` within the dataset.
-- **Binary (`sticky`):** 1 if popularity is at or above the **80th percentile** (top ~20%), else 0.
-
-This is a **pragmatic proxy**: popularity reflects broad reach and staying power in the market, but it is **not** a direct measure of repeated listening or “addiction.”
+- **`popularity_z`:** z-score of popularity within the sample.
+- **`sticky`:** 1 if popularity ≥ **80th percentile** (top ~20%), else 0.
 
 ## Analysis Approach
 
-1. **Cleaning & validation** — column harmonization, duplicates, missingness, range checks (`01_data_cleaning.ipynb`).
-2. **EDA** — distributions, sticky vs non-sticky comparisons, correlations, optional genre slices (`02_eda.ipynb`).
-3. **Modeling** — logistic regression (interpretable linear effects on standardized features) and random forest (nonlinear baseline), plus optional linear views on `popularity_z` (`03_modeling.ipynb`).
+1. Cleaning & target creation (`01_data_cleaning.ipynb`).
+2. EDA: distributions, sticky vs non-sticky, correlations, genre slices if present (`02_eda.ipynb`).
+3. Models: **logistic regression** (standardized features, `class_weight='balanced'`) and **random forest** (`class_weight='balanced'`), 80/20 stratified split, `random_state=42` (`03_modeling.ipynb`).
 
 ## Key Findings
 
-_Update after running the notebooks on your CSV._
+_Results from the latest executed pipeline (see `outputs/tables/model_metrics.csv`; re-run notebooks after changing the raw CSV)._
 
-- **Classification (sticky):** [e.g. ROC-AUC / F1 for logistic vs RF — fill from `outputs/tables/model_metrics.csv`.]
-- **Directional patterns:** [e.g. which features align positively/negatively with the proxy in coefficients / importance plots.]
-- **Surprises / null results:** [Weak effects are still informative — note them honestly.]
+| Model | Accuracy | Precision | Recall | F1 | ROC-AUC |
+|-------|----------|-----------|--------|-----|---------|
+| Logistic regression | ~0.55 | ~0.24 | ~0.54 | ~0.33 | **~0.59** |
+| Random forest | ~0.79 | ~1.0 | ~0.01 | ~0.02 | ~0.55 |
+
+- **Stronger on ranking / discrimination:** **Logistic regression** shows higher **ROC-AUC** and **F1** here; the random forest achieves high accuracy mostly by predicting the majority class (sticky is ~20% — check confusion matrices in `outputs/figures/`).
+- **EDA (correlation with popularity):** **Danceability** and **energy** show the clearest positive linear associations in this run; **valence** is near zero; **duration** is negligible at the linear level — patterns are **weak**, which is common for real-world music data.
+- **Interpretability (logistic, positive coefficients toward sticky):** **Danceability** and **energy** rank among the top positive drivers; **loudness** and **instrumentalness** lean negative in this sample (see `09_logistic_coefficients.png`).
 
 ## Limitations
 
-- **Popularity ≠ replay rate** — marketing, artist fanbase, playlist placement, and release timing confound the outcome.
-- **No individual-level engagement** — skips, saves, and session-level repeats are unavailable in typical public extracts.
-- **Genre labels** can be coarse or inconsistent.
-- **Correlation is not causation** — models describe association in this sample, not mechanisms.
+- Popularity ≠ individual replay behavior; marketing and artist reach confound the label.
+- Audio features alone explain only a **small fraction** of variance; expect modest ROC-AUC.
+- **Correlation is not causation**; coefficients are associative.
 
-## Product Relevance (Suggestive, Not Definitive)
+## Product Relevance (Suggestive)
 
-- **Cold-start ranking** — weak priors on new tracks when behavioral data is sparse.
-- **Playlist generation / sequencing** — features may act as soft constraints alongside collaborative filters.
-- **Skip-risk estimation** — audio-derived signals as a fallback when logs are missing (never a substitute for real feedback).
-- **Session-aware recommendation** — combine with context; audio features alone are incomplete.
+- **Cold-start priors** when behavioral logs are missing.
+- **Playlist / session heuristics** as soft signals next to collaborative filtering.
+- **Skip-risk exploration** — audio-only features are incomplete; treat as supplementary.
 
 ## Next Steps
 
-- Incorporate **temporal** features (release date, chart momentum) if available.
-- Add **hierarchical or mixed models** by genre/artist with partial pooling.
-- Validate proxy outcomes against **proprietary engagement** data in a product setting (gold standard).
+- External validation on another snapshot or market.
+- Add release timing / playlist reach if available.
+- Calibrate decision thresholds for precision–recall tradeoffs in a product setting.

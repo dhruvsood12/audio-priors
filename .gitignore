@@ -17,8 +17,9 @@ env/
 # OS
 .DS_Store
 
-# Optional: keep large raw datasets local (uncomment if needed)
-# data/raw/*.csv
+# Raw datasets (generate with scripts/make_demo_data.py or add your own locally)
+data/raw/*.csv
+!data/raw/.gitkeep
 
 # Editor
 .idea/

@@ -69,7 +69,7 @@ def build_feature_matrix(
     if include_genre and genre_col in df.columns:
         enc, gcols = encode_genre_column(df, genre_col=genre_col)
         if len(gcols):
-            X = pd.concat([X.reset_index(drop=True), enc.reset_index(drop=True)], axis=1)
+            X = pd.concat([X, enc], axis=1)
             names.extend(gcols)
 
     return X, names
@@ -80,11 +80,14 @@ def split_features_target(
     target_col: str = "sticky",
     include_genre: bool = False,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Return X, y for classification."""
+    """Return X, y for classification; drops rows with NaN in features or target."""
     X, _ = build_feature_matrix(df, include_genre=include_genre)
     if target_col not in df.columns:
         raise KeyError(f"Missing target column: {target_col}")
     y = df[target_col].copy()
+    valid = X.notna().all(axis=1) & y.notna()
+    X = X.loc[valid].reset_index(drop=True)
+    y = y.loc[valid].reset_index(drop=True)
     return X, y
 
 
