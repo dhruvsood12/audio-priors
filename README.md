@@ -209,7 +209,8 @@ It installs dependencies with **pip**, runs `make_demo_data.py`, **executes all 
 **Enable Actions on GitHub (pick one):**
 
 1. **Copy-paste (works with any HTTPS token):** In the repo → **Add file** → **Create new file** → path `.github/workflows/ci.yml` → paste from [`scripts/gh_actions_ci_reference.yml`](scripts/gh_actions_ci_reference.yml) → Commit.
-2. **Push the file:** Use a PAT with the **`workflow`** scope, or **SSH** remote, then commit `.github/workflows/ci.yml` locally and push.
+2. **Local helper:** From the repo root, run `./scripts/publish_ci_workflow.sh` — it writes `.github/workflows/ci.yml` (same content, without the three-line header). Then commit and push (SSH or PAT with **`workflow`** scope if HTTPS blocks workflow files).
+3. **Push the file manually:** Use a PAT with the **`workflow`** scope, or **SSH** remote, then commit `.github/workflows/ci.yml` locally and push.
 
 **If VS Code says “pull before push” but you only added a workflow:** the real error is often **workflow scope** — check the Git / Actions log. Sync with `git pull --rebase origin cleaning-pipeline` before pushing other commits.
 
