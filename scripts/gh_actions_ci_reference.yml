@@ -1,0 +1,43 @@
+# Copy this file to .github/workflows/ci.yml on GitHub if HTTPS push is blocked (PAT needs `workflow` scope).
+# Or: git push over SSH with the real .github/workflows/ci.yml in your repo.
+# Reliable pip-based CI (no Conda). Runs smoke checks + full notebook pipeline on demo data.
+name: CI
+
+on:
+  push:
+    branches: [main, master, cleaning-pipeline]
+  pull_request:
+    branches: [main, master, cleaning-pipeline]
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Smoke import
+        run: python -c "from src import data_prep, features, modeling, visuals"
+
+      - name: Demo dataset + execute notebooks
+        env:
+          MPLBACKEND: Agg
+        run: |
+          python scripts/make_demo_data.py
+          python -m jupyter nbconvert --to notebook --execute notebooks/01_data_cleaning.ipynb --inplace --ExecutePreprocessor.timeout=600
+          python -m jupyter nbconvert --to notebook --execute notebooks/02_eda.ipynb --inplace --ExecutePreprocessor.timeout=600
+          python -m jupyter nbconvert --to notebook --execute notebooks/03_modeling.ipynb --inplace --ExecutePreprocessor.timeout=600
+
+      - name: Verify outputs
+        run: |
+          test -f outputs/tables/model_metrics.csv
+          test -f outputs/figures/13_roc_curves.png
+          test -f outputs/figures/14_pr_curves.png

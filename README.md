@@ -73,12 +73,12 @@ Column names are normalized in code; alternate names are mapped via **`COLUMN_MA
 
 ```
 SongAddiction/                    # repository root (this project)
-├── .github/workflows/ci.yml      # pip + notebook smoke pipeline
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
 ├── scripts/
-│   └── make_demo_data.py           # optional demo CSV if raw data missing
+│   ├── make_demo_data.py           # optional demo CSV if raw data missing
+│   └── gh_actions_ci_reference.yml # copy to .github/workflows/ci.yml on GitHub
 ├── data/
 │   ├── raw/
 │   │   └── spotify_tracks.csv      # you add this (or run make_demo_data.py)
@@ -202,11 +202,19 @@ Figures write to `outputs/figures/`; the model comparison table writes to `outpu
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) installs dependencies with **pip**, generates demo data if needed, and **executes all three notebooks** with `MPLBACKEND=Agg`. This replaces fragile Conda-based setups and matches a typical clone-and-run workflow.
+The workflow definition lives in **[`scripts/gh_actions_ci_reference.yml`](scripts/gh_actions_ci_reference.yml)** (same content you would put at `.github/workflows/ci.yml`).
 
-**Pushing workflow files to GitHub:** GitHub requires a Personal Access Token with the **`workflow`** scope (or push via **SSH**). If `git push` is rejected for `.github/workflows/`, either update your token, use SSH, or add the YAML manually: **Repository → Add file → Create new file** at `.github/workflows/ci.yml` and paste the contents from this repo.
+It installs dependencies with **pip**, runs `make_demo_data.py`, **executes all three notebooks** with `MPLBACKEND=Agg`, and checks outputs. No Conda.
 
-**Remove old failing workflows:** If you previously added a Conda-based Action, delete that workflow file on GitHub so only this pipeline runs.
+**Enable Actions on GitHub (pick one):**
+
+1. **Copy-paste (works with any HTTPS token):** In the repo → **Add file** → **Create new file** → path `.github/workflows/ci.yml` → paste from [`scripts/gh_actions_ci_reference.yml`](scripts/gh_actions_ci_reference.yml) → Commit.
+2. **Local helper:** From the repo root, run `./scripts/publish_ci_workflow.sh` — it writes `.github/workflows/ci.yml` (same content, without the three-line header). Then commit and push (SSH or PAT with **`workflow`** scope if HTTPS blocks workflow files).
+3. **Push the file manually:** Use a PAT with the **`workflow`** scope, or **SSH** remote, then commit `.github/workflows/ci.yml` locally and push.
+
+**If VS Code says “pull before push” but you only added a workflow:** the real error is often **workflow scope** — check the Git / Actions log. Sync with `git pull --rebase origin cleaning-pipeline` before pushing other commits.
+
+**Remove old failing workflows:** Delete any legacy Conda workflow under `.github/workflows/` on GitHub so checks are not duplicated or failing.
 
 ---
 
