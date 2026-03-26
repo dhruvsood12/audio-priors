@@ -1,4 +1,4 @@
-# What Makes a Song Sticky?
+# What Makes a Song Addictive or Sticky?
 
 **Layout:** This repository is the project root—`README.md`, `notebooks/`, and `src/` sit at the top level so GitHub shows the full README and file tree on the main page.
 
