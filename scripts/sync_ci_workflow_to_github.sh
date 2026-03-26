@@ -25,8 +25,15 @@ if [[ -z "$TOKEN" ]]; then
 fi
 
 if [[ ! -f "$CI_FILE" ]]; then
-  echo "Missing $CI_FILE"
-  exit 1
+  REF="$ROOT/scripts/gh_actions_ci_reference.yml"
+  if [[ -f "$REF" ]]; then
+    mkdir -p "$(dirname "$CI_FILE")"
+    tail -n +4 "$REF" > "$CI_FILE"
+    echo "Wrote $CI_FILE from $REF (no header comments)."
+  else
+    echo "Missing $CI_FILE and $REF"
+    exit 1
+  fi
 fi
 
 api_get_sha() {
