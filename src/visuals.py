@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay, PrecisionRecallDisplay, RocCurveDisplay, confusion_matrix
 
 
 def _setup_style() -> None:
@@ -169,6 +169,70 @@ def plot_feature_importance(
     ax.barh(np.array(feature_names)[order], importances[order], color="teal", alpha=0.85)
     ax.set_title(title)
     ax.set_xlabel("Importance")
+    fig.tight_layout()
+    _maybe_save(fig, save_path)
+    return fig
+
+
+def plot_kde_popularity_by_sticky(
+    df: pd.DataFrame,
+    popularity_col: str = "popularity",
+    sticky_col: str = "sticky",
+    save_path: str | Path | None = None,
+) -> plt.Figure:
+    """Overlaid KDE of popularity for sticky vs non-sticky (proxy label separation)."""
+    _setup_style()
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    if sticky_col not in df.columns or popularity_col not in df.columns:
+        ax.text(0.5, 0.5, "Missing sticky or popularity", ha="center", va="center")
+        return fig
+    for lab, color, lab_name in [
+        (0, "#c44e52", "Not sticky (0)"),
+        (1, "#4c72b0", "Sticky (1)"),
+    ]:
+        sub = df.loc[df[sticky_col] == lab, popularity_col].dropna()
+        if len(sub) > 1:
+            sns.kdeplot(sub, ax=ax, fill=True, alpha=0.35, color=color, label=lab_name)
+    ax.set_xlabel("Popularity (0–100)")
+    ax.set_title("Popularity distribution by sticky label (KDE)")
+    ax.legend(loc="upper right")
+    fig.tight_layout()
+    _maybe_save(fig, save_path)
+    return fig
+
+
+def plot_roc_comparison(
+    y_true: pd.Series | np.ndarray,
+    y_score_lr: np.ndarray,
+    y_score_rf: np.ndarray,
+    save_path: str | Path | None = None,
+) -> plt.Figure:
+    """Overlay ROC curves for logistic vs random forest (positive-class scores)."""
+    _setup_style()
+    fig, ax = plt.subplots(figsize=(6.5, 5.2))
+    RocCurveDisplay.from_predictions(y_true, y_score_lr, ax=ax, name="Logistic regression")
+    RocCurveDisplay.from_predictions(y_true, y_score_rf, ax=ax, name="Random forest")
+    ax.plot([0, 1], [0, 1], "k--", alpha=0.35, label="Chance (AUC = 0.5)")
+    ax.legend(loc="lower right")
+    ax.set_title("ROC curves (test set)")
+    fig.tight_layout()
+    _maybe_save(fig, save_path)
+    return fig
+
+
+def plot_precision_recall_comparison(
+    y_true: pd.Series | np.ndarray,
+    y_score_lr: np.ndarray,
+    y_score_rf: np.ndarray,
+    save_path: str | Path | None = None,
+) -> plt.Figure:
+    """Precision–recall curves (informative when class imbalance)."""
+    _setup_style()
+    fig, ax = plt.subplots(figsize=(6.5, 5.2))
+    PrecisionRecallDisplay.from_predictions(y_true, y_score_lr, ax=ax, name="Logistic regression")
+    PrecisionRecallDisplay.from_predictions(y_true, y_score_rf, ax=ax, name="Random forest")
+    ax.set_title("Precision–recall curves (test set)")
+    ax.legend(loc="upper right")
     fig.tight_layout()
     _maybe_save(fig, save_path)
     return fig
