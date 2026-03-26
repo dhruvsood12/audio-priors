@@ -4,6 +4,27 @@
 
 End-to-end data science project: **which Spotify audio features are associated with highly “sticky” songs** when stickiness is approximated with **public popularity** (not individual replay or skip data).
 
+**Suggested GitHub “About” description:** *Spotify audio features vs popularity proxy — exploratory & predictive analysis (not clinical “addiction”).*
+
+---
+
+## Contents
+
+- [Project Overview](#project-overview)
+- [Why This Project](#why-this-project)
+- [Research Question](#research-question)
+- [Dataset](#dataset)
+- [Methodology](#methodology)
+- [Repository Structure](#repository-structure)
+- [Figure gallery](#figure-gallery)
+- [Key Visualizations](#key-visualizations)
+- [Main Findings](#main-findings)
+- [Product Implications](#product-implications-suggestive)
+- [Limitations](#limitations)
+- [How to Run](#how-to-run)
+- [CI](#ci)
+- [Interview Summary](#interview-summary)
+
 ---
 
 ## Project Overview
@@ -52,15 +73,18 @@ Column names are normalized in code; alternate names are mapped via **`COLUMN_MA
 
 ```
 SongAddiction/                    # repository root (this project)
+├── .github/workflows/ci.yml      # pip + notebook smoke pipeline
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
+├── scripts/
+│   └── make_demo_data.py           # optional demo CSV if raw data missing
 ├── data/
 │   ├── raw/
-│   │   └── spotify_tracks.csv          # you add this
+│   │   └── spotify_tracks.csv      # you add this (or run make_demo_data.py)
 │   └── processed/
-│       ├── spotify_cleaned.csv         # produced by 01
-│       └── spotify_model_data.csv      # produced by 01
+│       ├── spotify_cleaned.csv     # produced by notebook 01
+│       └── spotify_model_data.csv
 ├── notebooks/
 │   ├── 01_data_cleaning.ipynb
 │   ├── 02_eda.ipynb
@@ -79,18 +103,34 @@ SongAddiction/                    # repository root (this project)
 
 ---
 
+## Figure gallery
+
+_Images are written when you run the notebooks; paths are relative to the repo root so they render on GitHub after commit._
+
+| EDA | Modeling |
+|-----|----------|
+| ![Popularity histogram](outputs/figures/01_popularity_histogram.png) | ![Logistic coefficients](outputs/figures/09_logistic_coefficients.png) |
+| ![KDE popularity by sticky](outputs/figures/06b_kde_popularity_by_sticky.png) | ![RF importance](outputs/figures/10_rf_feature_importance.png) |
+| ![Correlation heatmap](outputs/figures/04_correlation_heatmap.png) | ![ROC curves](outputs/figures/13_roc_curves.png) |
+| | ![PR curves](outputs/figures/14_pr_curves.png) |
+
+---
+
 ## Key Visualizations
 
 Produced when you run the notebooks (saved under `outputs/figures/`):
 
 - Popularity histogram  
+- **KDE of popularity by sticky label** (overlap of proxy groups)  
 - Boxplots of audio features by `sticky`  
-- Scatter plots (e.g. danceability, energy, duration vs popularity)  
+- Scatter plots (danceability, energy, duration vs popularity)  
 - Correlation heatmap  
 - Top 10% vs bottom 10% mean feature comparison  
 - Logistic regression coefficient plot  
 - Random forest feature importance  
 - Confusion matrices  
+- **ROC curves** (logistic vs random forest)  
+- **Precision–recall curves**  
 
 Optional (if `genre` is present): average popularity by genre, sticky rate by genre, violin plot of a key feature by genre.
 
@@ -157,6 +197,12 @@ pip install -r requirements.txt
 Figures write to `outputs/figures/`; the model comparison table writes to `outputs/tables/model_metrics.csv`.
 
 **Headless / CI:** If `plt.show()` crashes (no display), run with a non-interactive backend, e.g. `MPLBACKEND=Agg jupyter nbconvert --execute notebooks/01_data_cleaning.ipynb --inplace` (repeat for `02`, `03`).
+
+---
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) installs dependencies with **pip**, generates demo data if needed, and **executes all three notebooks** with `MPLBACKEND=Agg`. This replaces fragile Conda-based setups and matches a typical clone-and-run workflow.
 
 ---
 

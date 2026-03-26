@@ -1,52 +1,78 @@
 # What Makes a Song Sticky? — Project Summary
 
+One-page narrative for interviews and slides. **“Sticky”** here means **high popularity in the sample** (top ~20%), used as a **public proxy** for broad replayability — not clinical addiction, individual replay counts, or skip/save behavior.
+
+---
+
 ## Goal
 
-Identify which **Spotify audio features** co-occur with **high popularity** in a track-level dataset, using popularity as a **public proxy** for broad replayability (“stickiness”). This is **not** a measure of addiction, individual replays, skips, or saves.
+Identify which **Spotify audio features** co-occur with **high popularity** at the track level, and whether simple models can separate **sticky vs not** using only audio + metadata. Findings are **associative** and **sample-specific**.
+
+---
 
 ## Dataset
 
-- **File:** `data/raw/spotify_tracks.csv` (track/artist/genre metadata where available, `popularity` 0–100, standard Spotify audio features, `duration_ms`).
-- **Cleaning:** Column harmonization via `COLUMN_MAP` in `src/data_prep.py`, duplicate removal, missing-value drops on required numeric fields, range checks, optional duration unit fix (seconds → ms).
+- **Input:** `data/raw/spotify_tracks.csv` — track/artist/genre (optional), `popularity` (0–100), Spotify audio features, `duration_ms`.
+- **Cleaning:** `COLUMN_MAP` renaming, duplicate removal, missingness on required numerics, range validation, optional **seconds → milliseconds** fix (`src/data_prep.py`).
+
+---
 
 ## Stickiness Definition
 
-- **`popularity_z`:** z-score of popularity within the sample.
-- **`sticky`:** 1 if popularity ≥ **80th percentile** (top ~20%), else 0.
+| Field | Definition |
+|-------|------------|
+| `popularity_z` | Z-score of popularity within the dataset |
+| `sticky` | 1 if popularity ≥ 80th percentile (~top 20%), else 0 |
+
+---
 
 ## Analysis Approach
 
-1. Cleaning & target creation (`01_data_cleaning.ipynb`).
-2. EDA: distributions, sticky vs non-sticky, correlations, genre slices if present (`02_eda.ipynb`).
-3. Models: **logistic regression** (standardized features, `class_weight='balanced'`) and **random forest** (`class_weight='balanced'`), 80/20 stratified split, `random_state=42` (`03_modeling.ipynb`).
+1. **Cleaning** — `01_data_cleaning.ipynb` + `clean_dataframe()`.
+2. **EDA** — Distributions, **KDE by sticky**, boxplots, scatters, correlation heatmap, genre panels if `genre` exists (`02_eda.ipynb`).
+3. **Modeling** — Logistic regression + random forest (`class_weight='balanced'`), 80/20 stratified split, metrics + **ROC** + **precision–recall** curves (`03_modeling.ipynb`).
+
+---
 
 ## Key Findings
 
-_Results from the latest executed pipeline (see `outputs/tables/model_metrics.csv`; re-run notebooks after changing the raw CSV)._
+| Model | ROC-AUC | F1 | Role |
+|-------|---------|-----|------|
+| Logistic regression | **~0.59** | **~0.33** | Better **ranking** / minority-class signal in this run |
+| Random forest | ~0.55 | ~0.02 | Higher **accuracy** but weak sticky recall (majority bias) |
 
-| Model | Accuracy | Precision | Recall | F1 | ROC-AUC |
-|-------|----------|-----------|--------|-----|---------|
-| Logistic regression | ~0.55 | ~0.24 | ~0.54 | ~0.33 | **~0.59** |
-| Random forest | ~0.79 | ~1.0 | ~0.01 | ~0.02 | ~0.55 |
+- **EDA:** **Danceability** and **energy** show the clearest positive correlations with popularity; **valence** ~0; **duration** ~0 — effects are **weak**, which is typical.
+- **Interpretability:** Logistic coefficients point to **danceability** and **energy** as top positive drivers toward the sticky label; **loudness** / **instrumentalness** lean negative in this sample (see `outputs/figures/09_logistic_coefficients.png`).
+- **Curves:** ROC and PR plots (`13_roc_curves.png`, `14_pr_curves.png`) make tradeoffs explicit under ~20% positive rate.
 
-- **Stronger on ranking / discrimination:** **Logistic regression** shows higher **ROC-AUC** and **F1** here; the random forest achieves high accuracy mostly by predicting the majority class (sticky is ~20% — check confusion matrices in `outputs/figures/`).
-- **EDA (correlation with popularity):** **Danceability** and **energy** show the clearest positive linear associations in this run; **valence** is near zero; **duration** is negligible at the linear level — patterns are **weak**, which is common for real-world music data.
-- **Interpretability (logistic, positive coefficients toward sticky):** **Danceability** and **energy** rank among the top positive drivers; **loudness** and **instrumentalness** lean negative in this sample (see `09_logistic_coefficients.png`).
+---
+
+## Visual Highlights (committed after `02` / `03`)
+
+- `01_popularity_histogram.png` — marginal popularity distribution  
+- `06b_kde_popularity_by_sticky.png` — overlap of sticky vs not on the proxy  
+- `04_correlation_heatmap.png` — linear associations  
+- `09_logistic_coefficients.png` / `10_rf_feature_importance.png` — interpretability  
+- `13_roc_curves.png` / `14_pr_curves.png` — discrimination vs chance  
+
+---
 
 ## Limitations
 
-- Popularity ≠ individual replay behavior; marketing and artist reach confound the label.
-- Audio features alone explain only a **small fraction** of variance; expect modest ROC-AUC.
-- **Correlation is not causation**; coefficients are associative.
+- Popularity mixes quality, marketing, artist fanbase, and timing.  
+- No individual-level replay/skip/save data.  
+- Modest ROC-AUC: audio alone does not “explain” the market.  
+- **Correlation ≠ causation.**
+
+---
 
 ## Product Relevance (Suggestive)
 
-- **Cold-start priors** when behavioral logs are missing.
-- **Playlist / session heuristics** as soft signals next to collaborative filtering.
-- **Skip-risk exploration** — audio-only features are incomplete; treat as supplementary.
+Use audio features as **weak priors** for cold-start or playlist heuristics when engagement logs are missing — always subordinate to real user feedback.
+
+---
 
 ## Next Steps
 
-- External validation on another snapshot or market.
-- Add release timing / playlist reach if available.
-- Calibrate decision thresholds for precision–recall tradeoffs in a product setting.
+- Re-run the pipeline on your own CSV; refresh `outputs/tables/model_metrics.csv` and figures.  
+- Optional: tune thresholds on PR curves for product-specific precision/recall goals.
