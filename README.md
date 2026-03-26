@@ -76,9 +76,11 @@ SongAddiction/                    # repository root (this project)
 ├── README.md
 ├── requirements.txt
 ├── .gitignore
+├── .github/workflows/
+│   └── ci.yml                        # GitHub Actions (pip + notebooks; no Conda)
 ├── scripts/
 │   ├── make_demo_data.py           # optional demo CSV if raw data missing
-│   └── gh_actions_ci_reference.yml # copy to .github/workflows/ci.yml on GitHub
+│   └── gh_actions_ci_reference.yml # duplicate of ci.yml (for copy-paste if push is blocked)
 ├── data/
 │   ├── raw/
 │   │   └── spotify_tracks.csv      # you add this (or run make_demo_data.py)
@@ -202,19 +204,11 @@ Figures write to `outputs/figures/`; the model comparison table writes to `outpu
 
 ## CI
 
-The workflow definition lives in **[`scripts/gh_actions_ci_reference.yml`](scripts/gh_actions_ci_reference.yml)** (same content you would put at `.github/workflows/ci.yml`).
+The active workflow is **[`.github/workflows/ci.yml`](.github/workflows/ci.yml)**. A copy also lives in [`scripts/gh_actions_ci_reference.yml`](scripts/gh_actions_ci_reference.yml) if you need to paste it without pushing workflow files.
 
-It installs dependencies with **pip**, runs `make_demo_data.py`, **executes all three notebooks** with `MPLBACKEND=Agg`, and checks outputs. No Conda.
+It installs dependencies with **pip**, runs `make_demo_data.py`, **executes all three notebooks** with `MPLBACKEND=Agg`, and checks outputs. **No Conda** — the old “Python Package using Conda” template failed because this repo has no `environment.yml` and no `pytest` suite.
 
-**Enable Actions on GitHub (pick one):**
-
-1. **Copy-paste (works with any HTTPS token):** In the repo → **Add file** → **Create new file** → path `.github/workflows/ci.yml` → paste from [`scripts/gh_actions_ci_reference.yml`](scripts/gh_actions_ci_reference.yml) → Commit.
-2. **Local helper:** From the repo root, run `./scripts/publish_ci_workflow.sh` — it writes `.github/workflows/ci.yml` (same content, without the three-line header). Then commit and push (SSH or PAT with **`workflow`** scope if HTTPS blocks workflow files).
-3. **Push the file manually:** Use a PAT with the **`workflow`** scope, or **SSH** remote, then commit `.github/workflows/ci.yml` locally and push.
-
-**If VS Code says “pull before push” but you only added a workflow:** the real error is often **workflow scope** — check the Git / Actions log. Sync with `git pull --rebase origin cleaning-pipeline` before pushing other commits.
-
-**Remove old failing workflows:** Delete any legacy Conda workflow under `.github/workflows/` on GitHub so checks are not duplicated or failing.
+**If `git push` is rejected for workflow files (HTTPS PAT without `workflow` scope):** run **`./scripts/sync_ci_workflow_to_github.sh`** after setting **`export GITHUB_TOKEN=...`** to a classic PAT with **`repo`** + **`workflow`**. It deletes the Conda template and uploads **`.github/workflows/ci.yml`** via the GitHub API, then run **`git pull origin main`** to match your clone. Alternatives: SSH remote, or paste YAML from `scripts/gh_actions_ci_reference.yml` in the GitHub UI. **`./scripts/publish_ci_workflow.sh`** only regenerates `ci.yml` locally from the reference file.
 
 ---
 
