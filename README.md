@@ -204,6 +204,10 @@ Figures write to `outputs/figures/`; the model comparison table writes to `outpu
 
 GitHub Actions (`.github/workflows/ci.yml`) installs dependencies with **pip**, generates demo data if needed, and **executes all three notebooks** with `MPLBACKEND=Agg`. This replaces fragile Conda-based setups and matches a typical clone-and-run workflow.
 
+**Pushing workflow files to GitHub:** GitHub requires a Personal Access Token with the **`workflow`** scope (or push via **SSH**). If `git push` is rejected for `.github/workflows/`, either update your token, use SSH, or add the YAML manually: **Repository → Add file → Create new file** at `.github/workflows/ci.yml` and paste the contents from this repo.
+
+**Remove old failing workflows:** If you previously added a Conda-based Action, delete that workflow file on GitHub so only this pipeline runs.
+
 ---
 
 ## Interview Summary
