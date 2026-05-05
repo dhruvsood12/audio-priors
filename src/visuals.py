@@ -262,3 +262,45 @@ def plot_logistic_coefficients(
     fig.tight_layout()
     _maybe_save(fig, save_path)
     return fig
+
+
+def plot_calibration_curve(
+    curves: dict[str, pd.DataFrame],
+    save_path: str | Path | None = None,
+) -> Figure:
+    """Reliability diagram overlay; each curves entry is a calibration_data frame."""
+    _setup_style()
+    fig, ax = plt.subplots(figsize=(6.5, 5.2))
+    ax.plot([0, 1], [0, 1], "k--", alpha=0.5, label="Perfect calibration")
+    for name, df in curves.items():
+        ax.plot(df["prob_pred"], df["prob_true"], marker="o", label=name)
+    ax.set_xlabel("Predicted probability of sticky")
+    ax.set_ylabel("Observed frequency of sticky")
+    ax.set_title("Calibration curves (test set)")
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    _maybe_save(fig, save_path)
+    return fig
+
+
+def plot_shap_summary(
+    shap_values: Any,
+    X: pd.DataFrame,
+    feature_names: list[str] | None = None,
+    save_path: str | Path | None = None,
+) -> Figure:
+    """SHAP bar summary for the positive class. shap is imported lazily to avoid load cost."""
+    import shap
+
+    plt.figure(figsize=(8, 5))
+    shap.summary_plot(
+        shap_values,
+        X,
+        feature_names=feature_names,
+        plot_type="bar",
+        show=False,
+    )
+    fig = plt.gcf()
+    fig.tight_layout()
+    _maybe_save(fig, save_path)
+    return fig
