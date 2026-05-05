@@ -66,9 +66,8 @@ def reshape_to_canonical(src: pd.DataFrame) -> pd.DataFrame:
     out["acousticness"] = pd.to_numeric(src["Acousticness"], errors="coerce")
     out["liveness"] = pd.to_numeric(src["Liveness"], errors="coerce")
     out["duration_ms"] = pd.to_numeric(src["Duration (ms)"], errors="coerce")
-    # Sashankpillai does not include instrumentalness; fill with NaN so the
-    # cleaner can drop or impute as configured.
-    out["instrumentalness"] = pd.NA
+    # Sashankpillai does not include instrumentalness; omit the column entirely
+    # rather than emitting all-NaN, which would otherwise crash the cleaner.
     return out
 
 

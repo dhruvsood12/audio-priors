@@ -34,6 +34,7 @@ EXPECTED_COLUMNS = [
     "artist_name",
     "genre",
     "popularity",
+    "chart_weeks",
     "danceability",
     "energy",
     "valence",
@@ -299,6 +300,12 @@ def clean_dataframe(
     """
     stats: dict[str, Any] = {}
     out = map_expected_columns(df)
+
+    all_nan = [c for c in out.columns if out[c].isna().all()]
+    if all_nan:
+        out = out.drop(columns=all_nan)
+        stats["all_nan_columns_dropped"] = all_nan
+
     out, dur_notes = fix_duration_units(out)
     stats.update(dur_notes)
 
