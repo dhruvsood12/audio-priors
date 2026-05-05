@@ -1,42 +1,59 @@
 # Copy this file to .github/workflows/ci.yml on GitHub if HTTPS push is blocked (PAT needs `workflow` scope).
 # Or: git push over SSH with the real .github/workflows/ci.yml in your repo.
-# Reliable pip-based CI (no Conda). Runs smoke checks + full notebook pipeline on demo data.
+# CI: lint (ruff + black + mypy), tests (pytest), and Docker pipeline build.
 name: CI
 
 on:
   push:
-    branches: [main, master, cleaning-pipeline]
+    branches: [main]
   pull_request:
-    branches: [main, master, cleaning-pipeline]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  pipeline:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+      - name: Install package with dev extras
+        run: pip install -e ".[dev]"
+      - name: ruff
+        run: ruff check .
+      - name: black
+        run: black --check .
+      - name: mypy
+        run: mypy src
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package with dev extras
+        run: pip install -e ".[dev]"
+      - name: pytest
+        run: pytest -q --cov=src --cov-report=term-missing
 
-      - name: Smoke import
-        run: python -c "from src import data_prep, features, modeling, visuals"
-
-      - name: Demo dataset + execute notebooks
-        env:
-          MPLBACKEND: Agg
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t songaddiction:ci .
+      - name: Run pipeline in container
         run: |
-          python scripts/make_demo_data.py
-          python -m jupyter nbconvert --to notebook --execute notebooks/01_data_cleaning.ipynb --inplace --ExecutePreprocessor.timeout=600
-          python -m jupyter nbconvert --to notebook --execute notebooks/02_eda.ipynb --inplace --ExecutePreprocessor.timeout=600
-          python -m jupyter nbconvert --to notebook --execute notebooks/03_modeling.ipynb --inplace --ExecutePreprocessor.timeout=600
-
-      - name: Verify outputs
+          mkdir -p outputs/figures outputs/tables
+          docker run --rm -v "${PWD}/outputs:/app/outputs" songaddiction:ci
+      - name: Verify pipeline outputs
         run: |
           test -f outputs/tables/model_metrics.csv
           test -f outputs/figures/13_roc_curves.png
