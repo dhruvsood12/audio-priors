@@ -6,8 +6,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.calibration import calibration_curve
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
@@ -134,6 +136,81 @@ def bootstrap_auc_ci(
     lower = float(np.quantile(aucs_arr, alpha / 2))
     upper = float(np.quantile(aucs_arr, 1 - alpha / 2))
     return point, lower, upper
+
+
+def calibration_data(
+    model: Any,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    n_bins: int = 10,
+) -> pd.DataFrame:
+    """Per-bin observed-vs-predicted probabilities for reliability plotting."""
+    proba = model.predict_proba(X_test)
+    pos = np.where(model.classes_ == 1)[0][0]
+    y_score = proba[:, pos]
+    prob_true, prob_pred = calibration_curve(y_test, y_score, n_bins=n_bins)
+    return pd.DataFrame({"prob_pred": prob_pred, "prob_true": prob_true})
+
+
+def permutation_importance_table(
+    model: Any,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    feature_names: list[str] | None = None,
+    n_repeats: int = 30,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Sorted permutation importance from sklearn.inspection.permutation_importance."""
+    if feature_names is None:
+        feature_names = list(X_test.columns)
+    result = permutation_importance(model, X_test, y_test, n_repeats=n_repeats, random_state=seed)
+    return (
+        pd.DataFrame(
+            {
+                "feature": feature_names,
+                "importance_mean": result.importances_mean,
+                "importance_std": result.importances_std,
+            }
+        )
+        .sort_values("importance_mean", ascending=False)
+        .reset_index(drop=True)
+    )
+
+
+def genre_stratified_auc(
+    model: Any,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    genre_series: pd.Series,
+    min_count: int = 30,
+) -> pd.DataFrame:
+    """Per-genre AUC and sample count for groups with min_count rows and both classes."""
+    proba = model.predict_proba(X_test)
+    pos = np.where(model.classes_ == 1)[0][0]
+    y_score = proba[:, pos]
+
+    df = pd.DataFrame(
+        {
+            "genre": np.asarray(genre_series),
+            "y_true": np.asarray(y_test),
+            "y_score": y_score,
+        }
+    )
+
+    rows: list[dict[str, Any]] = []
+    for genre, sub in df.groupby("genre"):
+        if len(sub) < min_count or sub["y_true"].nunique() < 2:
+            continue
+        rows.append(
+            {
+                "genre": str(genre),
+                "n": len(sub),
+                "n_sticky": int(sub["y_true"].sum()),
+                "auc": float(roc_auc_score(sub["y_true"], sub["y_score"])),
+            }
+        )
+
+    return pd.DataFrame(rows).sort_values("auc", ascending=False).reset_index(drop=True)
 
 
 def build_classification_report_df(results_by_model: dict[str, dict[str, float]]) -> pd.DataFrame:
