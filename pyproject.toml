@@ -33,6 +33,7 @@ dev = [
     "nbstripout>=0.7",
     "pre-commit>=3.7",
     "pandas-stubs>=2.0",
+    "shap>=0.45",
 ]
 
 [project.urls]
