@@ -49,19 +49,19 @@ Identify which **Spotify audio features** co-occur with **high popularity** at t
 
 ## Visual Highlights (committed after `02` / `03`)
 
-- `01_popularity_histogram.png` — marginal popularity distribution  
-- `06b_kde_popularity_by_sticky.png` — overlap of sticky vs not on the proxy  
-- `04_correlation_heatmap.png` — linear associations  
-- `09_logistic_coefficients.png` / `10_rf_feature_importance.png` — interpretability  
-- `13_roc_curves.png` / `14_pr_curves.png` — discrimination vs chance  
+- `01_popularity_histogram.png` — marginal popularity distribution
+- `06b_kde_popularity_by_sticky.png` — overlap of sticky vs not on the proxy
+- `04_correlation_heatmap.png` — linear associations
+- `09_logistic_coefficients.png` / `10_rf_feature_importance.png` — interpretability
+- `13_roc_curves.png` / `14_pr_curves.png` — discrimination vs chance
 
 ---
 
 ## Limitations
 
-- Popularity mixes quality, marketing, artist fanbase, and timing.  
-- No individual-level replay/skip/save data.  
-- Modest ROC-AUC: audio alone does not “explain” the market.  
+- Popularity mixes quality, marketing, artist fanbase, and timing.
+- No individual-level replay/skip/save data.
+- Modest ROC-AUC: audio alone does not “explain” the market.
 - **Correlation ≠ causation.**
 
 ---
@@ -74,5 +74,5 @@ Use audio features as **weak priors** for cold-start or playlist heuristics when
 
 ## Next Steps
 
-- Re-run the pipeline on your own CSV; refresh `outputs/tables/model_metrics.csv` and figures.  
+- Re-run the pipeline on your own CSV; refresh `outputs/tables/model_metrics.csv` and figures.
 - Optional: tune thresholds on PR curves for product-specific precision/recall goals.

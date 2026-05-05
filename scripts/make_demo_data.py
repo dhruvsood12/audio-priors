@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""Create a small demo CSV at data/raw/spotify_tracks.csv if the file is missing (for clone-and-run)."""
+"""Create a demo CSV at data/raw/spotify_tracks.csv if the file is missing."""
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
@@ -44,7 +42,10 @@ def main() -> None:
         )
     df = pd.DataFrame(rows)
     df["popularity"] = (
-        (df["popularity"] + (df["danceability"] * 15 + df["energy"] * 10)).round().clip(0, 100).astype(int)
+        (df["popularity"] + (df["danceability"] * 15 + df["energy"] * 10))
+        .round()
+        .clip(0, 100)
+        .astype(int)
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
