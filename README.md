@@ -122,17 +122,17 @@ _Images are written when you run the notebooks; paths are relative to the repo r
 
 Produced when you run the notebooks (saved under `outputs/figures/`):
 
-- Popularity histogram  
-- **KDE of popularity by sticky label** (overlap of proxy groups)  
-- Boxplots of audio features by `sticky`  
-- Scatter plots (danceability, energy, duration vs popularity)  
-- Correlation heatmap  
-- Top 10% vs bottom 10% mean feature comparison  
-- Logistic regression coefficient plot  
-- Random forest feature importance  
-- Confusion matrices  
-- **ROC curves** (logistic vs random forest)  
-- **Precision–recall curves**  
+- Popularity histogram
+- **KDE of popularity by sticky label** (overlap of proxy groups)
+- Boxplots of audio features by `sticky`
+- Scatter plots (danceability, energy, duration vs popularity)
+- Correlation heatmap
+- Top 10% vs bottom 10% mean feature comparison
+- Logistic regression coefficient plot
+- Random forest feature importance
+- Confusion matrices
+- **ROC curves** (logistic vs random forest)
+- **Precision–recall curves**
 
 Optional (if `genre` is present): average popularity by genre, sticky rate by genre, violin plot of a key feature by genre.
 
@@ -161,18 +161,18 @@ _Updated from the last full notebook run (`outputs/tables/model_metrics.csv`, fi
 
 Audio-only signals are **incomplete**, but they can still support product thinking when logs are scarce:
 
-- **Cold-start recommendation** — weak priors for new tracks before behavioral data exists.  
-- **Playlist generation / sequencing** — soft constraints alongside collaborative filtering.  
-- **Skip-risk estimation** — fallback features when session data is missing (never a replacement for real feedback).  
+- **Cold-start recommendation** — weak priors for new tracks before behavioral data exists.
+- **Playlist generation / sequencing** — soft constraints alongside collaborative filtering.
+- **Skip-risk estimation** — fallback features when session data is missing (never a replacement for real feedback).
 - **Session-aware recommendation** — combine with context; audio is one slice of the full picture.
 
 ---
 
 ## Limitations
 
-- **Popularity is not the same as replay rate** — it mixes quality, marketing, artist reach, and timing.  
-- **No direct skip/save/replay data** in this public framing.  
-- **Correlation is not causation** — associations in one sample do not imply universal rules.  
+- **Popularity is not the same as replay rate** — it mixes quality, marketing, artist reach, and timing.
+- **No direct skip/save/replay data** in this public framing.
+- **Correlation is not causation** — associations in one sample do not imply universal rules.
 - **Confounds** — label noise, regional effects, and **genre** metadata quality can distort patterns.
 
 Stating these limits is part of the analysis, not an apology.
@@ -191,9 +191,9 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-1. Place your CSV at `data/raw/spotify_tracks.csv`. If the file is missing, you can generate a small demo dataset: `python scripts/make_demo_data.py`.  
-2. Launch Jupyter from this **repository root** (the folder that contains `README.md` and `notebooks/`):  
-   `jupyter lab` or `jupyter notebook`  
+1. Place your CSV at `data/raw/spotify_tracks.csv`. If the file is missing, you can generate a small demo dataset: `python scripts/make_demo_data.py`.
+2. Launch Jupyter from this **repository root** (the folder that contains `README.md` and `notebooks/`):
+   `jupyter lab` or `jupyter notebook`
 3. Run notebooks **in order:** `01_data_cleaning.ipynb` → `02_eda.ipynb` → `03_modeling.ipynb`.
 
 Figures write to `outputs/figures/`; the model comparison table writes to `outputs/tables/model_metrics.csv`.
