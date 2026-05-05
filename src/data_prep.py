@@ -262,6 +262,25 @@ def create_sticky_label(
     return out, thresh
 
 
+def create_long_stayer_label(
+    df: pd.DataFrame,
+    chart_weeks_col: str = "chart_weeks",
+    percentile: float = 0.8,
+    label_col: str = "long_stayer",
+) -> tuple[pd.DataFrame, float]:
+    """
+    Binary label: 1 if chart_weeks >= percentile threshold (default top 20%).
+    Returns (dataframe, threshold_value). NaN chart_weeks fall to label 0; callers
+    intending to use long_stayer as a target should drop those rows beforehand.
+    """
+    out = df.copy()
+    if chart_weeks_col not in out.columns:
+        raise KeyError(f"Missing column: {chart_weeks_col}")
+    thresh = float(out[chart_weeks_col].quantile(percentile))
+    out[label_col] = (out[chart_weeks_col] >= thresh).astype(int)
+    return out, thresh
+
+
 def save_processed_data(df: pd.DataFrame, path: str | Path) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False)
@@ -300,6 +319,12 @@ def clean_dataframe(
     out, thresh = create_sticky_label(out, percentile=0.8)
     stats["sticky_threshold"] = thresh
     stats["sticky_balance"] = float(out["sticky"].mean()) if len(out) else 0.0
+
+    if "chart_weeks" in out.columns:
+        out, ls_thresh = create_long_stayer_label(out, percentile=0.8)
+        stats["long_stayer_threshold"] = ls_thresh
+        stats["long_stayer_balance"] = float(out["long_stayer"].mean()) if len(out) else 0.0
+
     stats["n_rows_final"] = len(out)
 
     return out, stats
