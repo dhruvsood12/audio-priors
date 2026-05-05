@@ -18,6 +18,7 @@ def synthetic_tracks() -> pd.DataFrame:
             "artist_name": [f"artist_{i % 30}" for i in range(n)],
             "genre": rng.choice(["pop", "rock", "jazz", "hip hop"], size=n),
             "popularity": rng.integers(0, 101, size=n),
+            "chart_weeks": rng.integers(1, 50, size=n),
             "danceability": rng.uniform(0, 1, size=n),
             "energy": rng.uniform(0, 1, size=n),
             "valence": rng.uniform(0, 1, size=n),
