@@ -27,8 +27,6 @@ def test_duration_renamed_to_duration_ms() -> None:
 
 
 def test_uppercase_column_names_are_normalized() -> None:
-    df = pd.DataFrame(
-        {"Artist_Name": ["a"], "Popularity": [10], "Track_Name": ["t"]}
-    )
+    df = pd.DataFrame({"Artist_Name": ["a"], "Popularity": [10], "Track_Name": ["t"]})
     out = data_prep.map_expected_columns(df)
     assert {"artist_name", "popularity", "track_name"}.issubset(out.columns)
