@@ -139,10 +139,6 @@ def train_test_split_stratified(
     if y.nunique() < 2:
         raise ValueError("Target needs at least two classes for classification.")
     try:
-        return train_test_split(
-            X, y, test_size=test_size, random_state=random_state, stratify=y
-        )
+        return train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y)
     except ValueError:
-        return train_test_split(
-            X, y, test_size=test_size, random_state=random_state, stratify=None
-        )
+        return train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=None)

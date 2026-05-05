@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ try:
     from IPython.display import display
 except ImportError:
 
-    def display(obj: Any) -> None:  # noqa: A001
+    def display(obj: Any) -> None:
         print(obj)
 
 
@@ -116,7 +116,7 @@ def map_expected_columns(df: pd.DataFrame) -> pd.DataFrame:
 def fix_duration_units(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     Convert duration_sec to duration_ms if present.
-    If duration_ms looks like seconds (max in typical 60–600 s range), convert to ms.
+    If duration_ms looks like seconds (max in typical 60-600 s range), convert to ms.
     """
     out = df.copy()
     notes: dict[str, Any] = {}
@@ -149,7 +149,7 @@ def summarize_raw(df: pd.DataFrame) -> None:
     display(pd.DataFrame({"missing": df.isna().sum(), "pct": (df.isna().mean() * 100).round(2)}))
     pd.set_option("display.max_columns", 30)
     print(df.head())
-    print(df.info())
+    df.info()
 
 
 def summarize_raw_no_display(df: pd.DataFrame) -> pd.DataFrame:
@@ -160,7 +160,7 @@ def summarize_raw_no_display(df: pd.DataFrame) -> pd.DataFrame:
 def remove_duplicates(
     df: pd.DataFrame,
     subset: list[str] | None = None,
-    keep: str = "first",
+    keep: Literal["first", "last", False] = "first",
 ) -> tuple[pd.DataFrame, int]:
     """Drop duplicate rows; default subset uses track_name, artist_name, duration_ms if present."""
     if subset is None:
@@ -192,8 +192,8 @@ def handle_missing_values(
 
 def validate_ranges(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
-    Popularity 0–100; Spotify features 0–1; duration_ms > 0.
-    Invalid 0–1 features set to NaN; bad popularity/duration rows dropped.
+    Popularity 0-100; Spotify features 0-1; duration_ms > 0.
+    Invalid 0-1 features set to NaN; bad popularity/duration rows dropped.
     """
     out = df.copy()
     notes: dict[str, Any] = {}

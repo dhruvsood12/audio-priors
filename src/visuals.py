@@ -9,7 +9,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.metrics import ConfusionMatrixDisplay, PrecisionRecallDisplay, RocCurveDisplay, confusion_matrix
+from matplotlib.figure import Figure
+from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    PrecisionRecallDisplay,
+    RocCurveDisplay,
+    confusion_matrix,
+)
 
 
 def _setup_style() -> None:
@@ -17,7 +23,7 @@ def _setup_style() -> None:
     plt.rcParams["figure.dpi"] = 120
 
 
-def _maybe_save(fig: plt.Figure, save_path: str | Path | None) -> None:
+def _maybe_save(fig: Figure, save_path: str | Path | None) -> None:
     if save_path:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, bbox_inches="tight")
@@ -27,12 +33,12 @@ def plot_popularity_distribution(
     df: pd.DataFrame,
     col: str = "popularity",
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     _setup_style()
     fig, ax = plt.subplots(figsize=(8, 4.5))
     sns.histplot(df[col].dropna(), kde=True, ax=ax, color="steelblue", edgecolor="white")
     ax.set_title("Distribution of Spotify popularity")
-    ax.set_xlabel("Popularity (0–100)")
+    ax.set_xlabel("Popularity (0-100)")
     ax.set_ylabel("Count")
     fig.tight_layout()
     _maybe_save(fig, save_path)
@@ -44,7 +50,7 @@ def plot_feature_boxplots(
     features: list[str],
     target_col: str = "sticky",
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     _setup_style()
     present = [f for f in features if f in df.columns]
     n = len(present)
@@ -76,7 +82,7 @@ def plot_scatter_with_trend(
     x_col: str,
     y_col: str,
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     _setup_style()
     fig, ax = plt.subplots(figsize=(7, 5))
     d = df[[x_col, y_col]].dropna()
@@ -97,7 +103,7 @@ def plot_correlation_heatmap(
     df: pd.DataFrame,
     cols: list[str],
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     _setup_style()
     present = [c for c in cols if c in df.columns]
     if len(present) < 2:
@@ -118,7 +124,7 @@ def plot_feature_mean_comparison(
     features: list[str],
     group_col: str,
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     """Bar chart of mean features for two groups (e.g. top 10% vs bottom 10% by popularity)."""
     _setup_style()
     present = [f for f in features if f in df.columns]
@@ -143,7 +149,7 @@ def plot_confusion_matrix_from_model(
     X_test: pd.DataFrame,
     y_test: pd.Series,
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     _setup_style()
     y_pred = model.predict(X_test)
     cm = confusion_matrix(y_test, y_pred)
@@ -162,7 +168,7 @@ def plot_feature_importance(
     feature_names: list[str],
     title: str = "Feature importance",
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     _setup_style()
     order = np.argsort(importances)
     fig, ax = plt.subplots(figsize=(8, max(4, len(feature_names) * 0.25)))
@@ -179,7 +185,7 @@ def plot_kde_popularity_by_sticky(
     popularity_col: str = "popularity",
     sticky_col: str = "sticky",
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     """Overlaid KDE of popularity for sticky vs non-sticky (proxy label separation)."""
     _setup_style()
     fig, ax = plt.subplots(figsize=(8, 4.8))
@@ -193,7 +199,7 @@ def plot_kde_popularity_by_sticky(
         sub = df.loc[df[sticky_col] == lab, popularity_col].dropna()
         if len(sub) > 1:
             sns.kdeplot(sub, ax=ax, fill=True, alpha=0.35, color=color, label=lab_name)
-    ax.set_xlabel("Popularity (0–100)")
+    ax.set_xlabel("Popularity (0-100)")
     ax.set_title("Popularity distribution by sticky label (KDE)")
     ax.legend(loc="upper right")
     fig.tight_layout()
@@ -206,7 +212,7 @@ def plot_roc_comparison(
     y_score_lr: np.ndarray,
     y_score_rf: np.ndarray,
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     """Overlay ROC curves for logistic vs random forest (positive-class scores)."""
     _setup_style()
     fig, ax = plt.subplots(figsize=(6.5, 5.2))
@@ -225,13 +231,13 @@ def plot_precision_recall_comparison(
     y_score_lr: np.ndarray,
     y_score_rf: np.ndarray,
     save_path: str | Path | None = None,
-) -> plt.Figure:
-    """Precision–recall curves (informative when class imbalance)."""
+) -> Figure:
+    """Precision-recall curves (informative when class imbalance)."""
     _setup_style()
     fig, ax = plt.subplots(figsize=(6.5, 5.2))
     PrecisionRecallDisplay.from_predictions(y_true, y_score_lr, ax=ax, name="Logistic regression")
     PrecisionRecallDisplay.from_predictions(y_true, y_score_rf, ax=ax, name="Random forest")
-    ax.set_title("Precision–recall curves (test set)")
+    ax.set_title("Precision-recall curves (test set)")
     ax.legend(loc="upper right")
     fig.tight_layout()
     _maybe_save(fig, save_path)
@@ -242,7 +248,7 @@ def plot_logistic_coefficients(
     model: Any,
     feature_names: list[str],
     save_path: str | Path | None = None,
-) -> plt.Figure:
+) -> Figure:
     """Horizontal bar chart of logistic regression coefficients."""
     _setup_style()
     coef = np.ravel(model.coef_)
