@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import (
@@ -57,6 +58,20 @@ def train_random_forest(
     return model
 
 
+def train_majority_class_baseline(y_train: pd.Series) -> DummyClassifier:
+    """Always predict the majority class. Floors accuracy; AUC is 0.5 by construction."""
+    model = DummyClassifier(strategy="most_frequent")
+    model.fit(np.zeros((len(y_train), 1)), y_train)
+    return model
+
+
+def train_stratified_random_baseline(y_train: pd.Series, random_state: int = 42) -> DummyClassifier:
+    """Sample labels from the empirical class distribution. Floors AUC at 0.5."""
+    model = DummyClassifier(strategy="stratified", random_state=random_state)
+    model.fit(np.zeros((len(y_train), 1)), y_train)
+    return model
+
+
 def evaluate_classifier(
     model: Any,
     X_test: pd.DataFrame,
@@ -83,6 +98,42 @@ def evaluate_classifier(
     except ValueError:
         out["roc_auc"] = float("nan")
     return out
+
+
+def bootstrap_auc_ci(
+    y_true: np.ndarray | pd.Series,
+    y_score: np.ndarray | pd.Series,
+    n_resamples: int = 1000,
+    seed: int = 42,
+    alpha: float = 0.05,
+) -> tuple[float, float, float]:
+    """
+    Bootstrap percentile CI on ROC-AUC.
+
+    Returns (point_auc, lower, upper). Resamples whose y_true contains a single
+    class are skipped, since AUC is undefined there.
+    """
+    y_true_arr = np.asarray(y_true)
+    y_score_arr = np.asarray(y_score)
+    n = len(y_true_arr)
+    rng = np.random.default_rng(seed)
+
+    point = float(roc_auc_score(y_true_arr, y_score_arr))
+
+    aucs: list[float] = []
+    for _ in range(n_resamples):
+        idx = rng.integers(0, n, size=n)
+        if len(np.unique(y_true_arr[idx])) < 2:
+            continue
+        aucs.append(float(roc_auc_score(y_true_arr[idx], y_score_arr[idx])))
+
+    if not aucs:
+        return point, float("nan"), float("nan")
+
+    aucs_arr = np.asarray(aucs)
+    lower = float(np.quantile(aucs_arr, alpha / 2))
+    upper = float(np.quantile(aucs_arr, 1 - alpha / 2))
+    return point, lower, upper
 
 
 def build_classification_report_df(results_by_model: dict[str, dict[str, float]]) -> pd.DataFrame:
