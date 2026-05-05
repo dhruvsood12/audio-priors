@@ -22,12 +22,15 @@ def main() -> None:
     rows = []
     for i in range(n):
         pop = int(np.clip(np.random.beta(2, 5) * 100 + np.random.randn() * 5, 0, 100))
+        # chart_weeks is loosely correlated with popularity, with a heavy tail
+        chart_weeks = int(np.clip(1 + np.random.geometric(0.2) + pop * 0.05, 1, 100))
         rows.append(
             {
                 "track_name": f"track_{i}",
                 "artist_name": f"artist_{i % 80}",
                 "genre": np.random.choice(genres),
                 "popularity": pop,
+                "chart_weeks": chart_weeks,
                 "danceability": float(np.clip(np.random.beta(2, 2), 0, 1)),
                 "energy": float(np.clip(np.random.beta(2, 2), 0, 1)),
                 "valence": float(np.clip(np.random.beta(2, 2), 0, 1)),
