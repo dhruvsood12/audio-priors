@@ -1,217 +1,69 @@
-# What Makes a Song Addictive or Sticky?
+# SongAddiction
 
-**Layout:** This repository is the project root—`README.md`, `notebooks/`, and `src/` sit at the top level so GitHub shows the full README and file tree on the main page.
+Can Spotify audio features predict whether a song "sticks"? Across 1545 real tracks from the 2020-2021 Spotify Top 200, the best model is a random forest predicting top-quintile popularity at ROC-AUC 0.594 (95% CI 0.508 to 0.674). Switching the target from popularity to chart-longevity does not lift AUC. Audio features alone are a thin signal.
 
-End-to-end data science project: **which Spotify audio features are associated with highly “sticky” songs** when stickiness is approximated with **public popularity** (not individual replay or skip data).
+## What it does
 
-**Suggested GitHub “About” description:** *Spotify audio features vs popularity proxy — exploratory & predictive analysis (not clinical “addiction”).*
+The pipeline cleans Spotify audio features, derives two binary stickiness targets (top-quintile of `popularity`, top-quintile of weeks on chart), and trains logistic regression and random forest classifiers to predict each from the same nine audio features. Outputs include bootstrap AUC confidence intervals, calibration curves, SHAP values, permutation importance, and per-genre AUC tables.
 
----
+## Results
 
-## Contents
+| target | model | ROC-AUC | 95% CI |
+|---|---|---|---|
+| sticky | majority class | 0.500 | -- |
+| sticky | stratified random | 0.500 | -- |
+| sticky | logistic regression | 0.558 | (0.472, 0.639) |
+| sticky | random forest | 0.594 | (0.508, 0.674) |
+| long_stayer | logistic regression | 0.544 | (0.469, 0.619) |
+| long_stayer | random forest | 0.543 | (0.463, 0.618) |
 
-- [Project Overview](#project-overview)
-- [Why This Project](#why-this-project)
-- [Research Question](#research-question)
-- [Dataset](#dataset)
-- [Methodology](#methodology)
-- [Repository Structure](#repository-structure)
-- [Figure gallery](#figure-gallery)
-- [Key Visualizations](#key-visualizations)
-- [Main Findings](#main-findings)
-- [Product Implications](#product-implications-suggestive)
-- [Limitations](#limitations)
-- [How to Run](#how-to-run)
-- [CI](#ci)
-- [Interview Summary](#interview-summary)
+Only the random forest on `sticky` clears chance by its bootstrap lower bound (0.508). Replacing the popularity target with a chart-longevity target did not raise AUC for either model. Numbers reproduce from `outputs/tables/target_comparison.csv` and `outputs/tables/model_metrics.csv`.
 
----
+Per-genre AUC, logistic regression on `sticky`, test set: pop 0.579 (n=24), dance pop 0.572 (n=41), latin 0.159 (n=24). Latin's anti-predictive AUC is notable but rests on a small sample.
 
-## Project Overview
+![ROC curves: logistic regression vs random forest, sticky target](outputs/figures/13_roc_curves.png)
 
-Streaming products care whether a song **pulls listeners back**—but public datasets rarely expose repeat listens, skips, or saves. This project studies **audio features** alongside **Spotify popularity** as an **observable proxy** for broad replayability and staying power. The emphasis is on **clear measurement**, **interpretable models**, and **honest limits**—not on claiming literal “addiction” or access to proprietary engagement logs.
+## How it works
 
----
+Data comes from the [sashankpillai/spotify-top-200-charts-20202021](https://www.kaggle.com/datasets/sashankpillai/spotify-top-200-charts-20202021) Kaggle dataset: 1556 unique tracks pulled from the Spotify Top 200 between January 2020 and August 2021. `scripts/fetch_chart_data.py` downloads via the Kaggle CLI and reshapes the source's Title Case columns and list-shaped Genre field into the repo's canonical schema, including a `chart_weeks` column derived from "Number of Times Charted". `scripts/make_demo_data.py` produces a synthetic dataset with the same schema for users without Kaggle credentials.
 
-## Why This Project
+Both targets are top-quintile binaries (80th percentile cutoff) of either `popularity` or `chart_weeks`. Features are the nine Spotify audio features that survive cleaning (danceability, energy, valence, tempo, loudness, speechiness, acousticness, liveness, duration_ms; instrumentalness is absent from this dataset). Logistic regression uses `StandardScaler` and `class_weight="balanced"`; random forest uses 200 trees with `class_weight="balanced"`. Evaluation is an 80/20 stratified split with `random_state=42`. AUCs include 1000-resample bootstrap 95% confidence intervals and are compared against majority-class and stratified-random baselines.
 
-Direct **replay, skip, and save** signals are the gold standard for stickiness, yet they are typically **private** and context-specific. **Popularity** is imperfect, but it is **public**, comparable across tracks, and reflects aggregate market attention—making it a defensible **proxy** for an interview-ready portfolio analysis when behavioral logs are unavailable.
+## Run it locally
 
----
+Docker, demo data:
 
-## Research Question
+    docker compose up pipeline
 
-**Which Spotify audio features are most associated with highly sticky songs, using popularity as a public proxy for replayability?**
+This builds the image, generates a synthetic dataset, executes the three notebooks headless, and writes outputs to `./outputs/`.
 
----
+Docker, real chart data:
 
-## Dataset
+    pip install kaggle
+    # place credentials at ~/.kaggle/kaggle.json or ~/.kaggle/access_token
+    python scripts/fetch_chart_data.py
+    docker compose up pipeline
 
-Place your CSV at `data/raw/spotify_tracks.csv`. The pipeline expects (or maps to) columns such as:
+Local Python (development):
 
-| Area | Columns |
-|------|---------|
-| Identity | `track_name`, `artist_name`, `genre` (optional) |
-| Target proxy | `popularity` (0–100) |
-| Audio features | `danceability`, `energy`, `valence`, `tempo`, `loudness`, `speechiness`, `acousticness`, `instrumentalness`, `liveness`, `duration_ms` |
+    pip install -e ".[dev]"
+    pre-commit install
+    pytest -q
+    bash scripts/run_pipeline.sh
 
-Column names are normalized in code; alternate names are mapped via **`COLUMN_MAP`** in [`src/data_prep.py`](src/data_prep.py) (e.g. `artists` → `artist_name`, `duration` → `duration_ms`).
-
----
-
-## Methodology
-
-1. **Data cleaning** — Harmonize names, remove duplicates, handle missing values, validate ranges (`01_data_cleaning.ipynb` + `src/data_prep.py`).
-2. **Stickiness targets** — `popularity_z` (z-score); binary `sticky` = 1 for tracks at or above the **80th percentile** of popularity (top ~20%).
-3. **Exploratory analysis** — Distributions, sticky vs non-sticky comparisons, correlations, optional genre breakdowns (`02_eda.ipynb` + `src/visuals.py`).
-4. **Classification** — Logistic regression (standardized features) and random forest; metrics include accuracy, precision, recall, F1, ROC-AUC (`03_modeling.ipynb` + `src/modeling.py`).
-5. **Interpretability** — Logistic coefficients and random forest feature importance; optional linear regression / OLS on `popularity_z` for a continuous view.
-
----
-
-## Repository Structure
-
-```
-SongAddiction/                    # repository root (this project)
-├── README.md
-├── requirements.txt
-├── .gitignore
-├── .github/workflows/
-│   └── ci.yml                        # GitHub Actions (pip + notebooks; no Conda)
-├── scripts/
-│   ├── make_demo_data.py           # optional demo CSV if raw data missing
-│   └── gh_actions_ci_reference.yml # duplicate of ci.yml (for copy-paste if push is blocked)
-├── data/
-│   ├── raw/
-│   │   └── spotify_tracks.csv      # you add this (or run make_demo_data.py)
-│   └── processed/
-│       ├── spotify_cleaned.csv     # produced by notebook 01
-│       └── spotify_model_data.csv
-├── notebooks/
-│   ├── 01_data_cleaning.ipynb
-│   ├── 02_eda.ipynb
-│   └── 03_modeling.ipynb
-├── src/
-│   ├── data_prep.py
-│   ├── features.py
-│   ├── modeling.py
-│   └── visuals.py
-├── outputs/
-│   ├── figures/
-│   └── tables/
-└── presentation/
-    └── project_summary.md
-```
-
----
-
-## Figure gallery
-
-_Images are written when you run the notebooks; paths are relative to the repo root so they render on GitHub after commit._
-
-| EDA | Modeling |
-|-----|----------|
-| ![Popularity histogram](outputs/figures/01_popularity_histogram.png) | ![Logistic coefficients](outputs/figures/09_logistic_coefficients.png) |
-| ![KDE popularity by sticky](outputs/figures/06b_kde_popularity_by_sticky.png) | ![RF importance](outputs/figures/10_rf_feature_importance.png) |
-| ![Correlation heatmap](outputs/figures/04_correlation_heatmap.png) | ![ROC curves](outputs/figures/13_roc_curves.png) |
-| | ![PR curves](outputs/figures/14_pr_curves.png) |
-
----
-
-## Key Visualizations
-
-Produced when you run the notebooks (saved under `outputs/figures/`):
-
-- Popularity histogram
-- **KDE of popularity by sticky label** (overlap of proxy groups)
-- Boxplots of audio features by `sticky`
-- Scatter plots (danceability, energy, duration vs popularity)
-- Correlation heatmap
-- Top 10% vs bottom 10% mean feature comparison
-- Logistic regression coefficient plot
-- Random forest feature importance
-- Confusion matrices
-- **ROC curves** (logistic vs random forest)
-- **Precision–recall curves**
-
-Optional (if `genre` is present): average popularity by genre, sticky rate by genre, violin plot of a key feature by genre.
-
----
-
-## Main Findings
-
-_Updated from the last full notebook run (`outputs/tables/model_metrics.csv`, figures in `outputs/figures/`). Re-run `01` → `02` → `03` after replacing `data/raw/spotify_tracks.csv` to refresh._
-
-**Models (hold-out test set, 80/20 stratified split):**
-
-| Model | ROC-AUC | F1 | Notes |
-|-------|---------|-----|--------|
-| **Logistic regression** | **~0.59** | **~0.33** | `class_weight='balanced'`; better discrimination on the minority (sticky) class. |
-| Random forest | ~0.55 | ~0.02 | High accuracy largely reflects majority-class prediction; weak recall on sticky. |
-
-**Takeaway:** For this sample, **logistic regression** is the more useful baseline for **ranking** sticky vs not (ROC-AUC / F1). Performance is **modest** — expected when predicting market popularity from audio alone.
-
-**EDA (linear correlation with popularity):** **Danceability** and **energy** show the clearest positive associations; **valence** is near zero; **duration** is negligible — all **weak** correlations, so conclusions stay tentative.
-
-**Top features (logistic coefficients, direction toward “sticky”):** Among the largest positive drivers in this run are **danceability** and **energy**; **loudness** and **instrumentalness** lean negative (see `outputs/figures/09_logistic_coefficients.png`). Random forest importance is in `10_rf_feature_importance.png` — use alongside coefficients, not as a duplicate story.
-
----
-
-## Product Implications (Suggestive)
-
-Audio-only signals are **incomplete**, but they can still support product thinking when logs are scarce:
-
-- **Cold-start recommendation** — weak priors for new tracks before behavioral data exists.
-- **Playlist generation / sequencing** — soft constraints alongside collaborative filtering.
-- **Skip-risk estimation** — fallback features when session data is missing (never a replacement for real feedback).
-- **Session-aware recommendation** — combine with context; audio is one slice of the full picture.
-
----
+Requires Python 3.10 or higher. CI runs ruff, black, mypy, pytest, and a Docker pipeline check.
 
 ## Limitations
 
-- **Popularity is not the same as replay rate** — it mixes quality, marketing, artist reach, and timing.
-- **No direct skip/save/replay data** in this public framing.
-- **Correlation is not causation** — associations in one sample do not imply universal rules.
-- **Confounds** — label noise, regional effects, and **genre** metadata quality can distort patterns.
+- Popularity and chart_weeks are both market signals; they reflect artist reach, marketing spend, and timing, not just track quality.
+- The data is one snapshot of one chart (Top 200, 2020-2021); patterns may not generalize across markets or eras.
+- Audio features are Spotify-API heuristics, not raw waveform analysis.
+- Latin's per-genre AUC of 0.159 is based on 24 test tracks; the anti-predictive direction would need a larger sample to defend.
+- Cold-start recommendation and skip-risk estimation are downstream applications this analysis does not attempt.
 
-Stating these limits is part of the analysis, not an apology.
+## References
 
----
-
-## How to Run
-
-**Prerequisites:** Python 3.10+ recommended.
-
-```bash
-git clone https://github.com/dhruvsood12/SongAddiction.git
-cd SongAddiction
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-1. Place your CSV at `data/raw/spotify_tracks.csv`. If the file is missing, you can generate a small demo dataset: `python scripts/make_demo_data.py`.
-2. Launch Jupyter from this **repository root** (the folder that contains `README.md` and `notebooks/`):
-   `jupyter lab` or `jupyter notebook`
-3. Run notebooks **in order:** `01_data_cleaning.ipynb` → `02_eda.ipynb` → `03_modeling.ipynb`.
-
-Figures write to `outputs/figures/`; the model comparison table writes to `outputs/tables/model_metrics.csv`.
-
-**Headless / CI:** If `plt.show()` crashes (no display), run with a non-interactive backend, e.g. `MPLBACKEND=Agg jupyter nbconvert --execute notebooks/01_data_cleaning.ipynb --inplace` (repeat for `02`, `03`).
-
----
-
-## CI
-
-The active workflow is **[`.github/workflows/ci.yml`](.github/workflows/ci.yml)**. A copy also lives in [`scripts/gh_actions_ci_reference.yml`](scripts/gh_actions_ci_reference.yml) if you need to paste it without pushing workflow files.
-
-It installs dependencies with **pip**, runs `make_demo_data.py`, **executes all three notebooks** with `MPLBACKEND=Agg`, and checks outputs. **No Conda** — the old “Python Package using Conda” template failed because this repo has no `environment.yml` and no `pytest` suite.
-
-**If `git push` is rejected for workflow files (HTTPS PAT without `workflow` scope):** run **`./scripts/sync_ci_workflow_to_github.sh`** after setting **`export GITHUB_TOKEN=...`** to a classic PAT with **`repo`** + **`workflow`**. It deletes the Conda template and uploads **`.github/workflows/ci.yml`** via the GitHub API, then run **`git pull origin main`** to match your clone. Alternatives: SSH remote, or paste YAML from `scripts/gh_actions_ci_reference.yml` in the GitHub UI. **`./scripts/publish_ci_workflow.sh`** only regenerates `ci.yml` locally from the reference file.
-
----
-
-## Interview Summary
-
-This project asks a **product-relevant question**—what makes tracks **stick** in the wild—using only **public audio + popularity** data. I define **stickiness** transparently as a **top-popularity proxy**, clean and validate the data, explore differences between **sticky vs non-sticky** groups, then fit **interpretable** (logistic) and **nonlinear** (random forest) models. I emphasize **limitations** (popularity confounds, no replay logs) and connect results to **recommendation systems** as **priors and heuristics**, not ground truth. The story is: **rigorous proxy measurement, clear methods, honest interpretation.**
+- Dataset: [Spotify Top 200 Charts (2020-2021)](https://www.kaggle.com/datasets/sashankpillai/spotify-top-200-charts-20202021) on Kaggle.
+- Modeling and metrics via [scikit-learn](https://scikit-learn.org/).
+- SHAP: Lundberg, S. M. and Lee, S. (2017). "A Unified Approach to Interpreting Model Predictions." NeurIPS.
+- Bootstrap CIs use `numpy.random.default_rng`; calibration via `sklearn.calibration.calibration_curve`.
