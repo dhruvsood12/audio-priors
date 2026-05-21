@@ -24,6 +24,7 @@ dependencies = [
 notebooks = [
     "jupyter>=1.0.0",
     "ipykernel>=6.25.0",
+    "shap>=0.45",
 ]
 dev = [
     "pytest>=8.0",
