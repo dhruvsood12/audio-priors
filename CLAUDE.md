@@ -10,7 +10,7 @@ not committed).
 - [x] Phase 1: Data ingestion and validation
 - [x] Phase 2: EDA and label design
 - [x] Phase 3: Modeling
-- [ ] Phase 4: Interpretability and calibration
+- [x] Phase 4: Interpretability and calibration
 - [ ] Phase 5: Cold-start recommender
 - [ ] Phase 6: Streamlit demo
 - [ ] Phase 7: Test coverage sweep
@@ -20,8 +20,8 @@ not committed).
 
 ## Current focus
 
-Phase 3 is complete on the `feat/phase-3-modeling` branch. PR open, waiting
-for Dhruv's approval before opening Phase 4.
+Phase 4 is complete on the `feat/phase-4-interpret` branch. PR open,
+waiting for Dhruv's approval before opening Phase 5.
 
 ## Open questions
 
