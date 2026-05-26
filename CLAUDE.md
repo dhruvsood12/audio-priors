@@ -9,7 +9,7 @@ not committed).
 - [x] Phase 0: Hygiene and identity
 - [x] Phase 1: Data ingestion and validation
 - [x] Phase 2: EDA and label design
-- [ ] Phase 3: Modeling
+- [x] Phase 3: Modeling
 - [ ] Phase 4: Interpretability and calibration
 - [ ] Phase 5: Cold-start recommender
 - [ ] Phase 6: Streamlit demo
@@ -20,8 +20,8 @@ not committed).
 
 ## Current focus
 
-Phase 2 is complete on the `feat/phase-2-eda` branch. PR open, waiting for
-Dhruv's approval before opening Phase 3.
+Phase 3 is complete on the `feat/phase-3-modeling` branch. PR open, waiting
+for Dhruv's approval before opening Phase 4.
 
 ## Open questions
 
