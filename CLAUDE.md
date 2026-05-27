@@ -14,7 +14,7 @@ not committed).
 - [x] Phase 5: Cold-start recommender
 - [x] Phase 6: Streamlit demo
 - [x] Phase 7: Test coverage sweep
-- [ ] Phase 8: CI, Docker, hooks
+- [x] Phase 8: CI, Docker, hooks
 - [ ] Phase 9: README, DATA.md, MODEL.md
 - [ ] Phase 10: Final pass and release
 
