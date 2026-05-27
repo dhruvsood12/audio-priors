@@ -10,6 +10,10 @@ outputs/models/*
 !outputs/models/.gitkeep
 outputs/figures/*
 !outputs/figures/.gitkeep
+# Phase 6 demo screenshot is a documentation artifact (cannot be regenerated
+# by headless CI without Playwright); track it explicitly. Phase 8 will add a
+# Playwright job that re-captures on each main push.
+!outputs/figures/demo.png
 outputs/tables/*
 !outputs/tables/.gitkeep
 
