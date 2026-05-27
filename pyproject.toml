@@ -72,8 +72,9 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]
-# typer.Option in argument defaults is the standard CLI idiom; B008 forbids it.
+# typer.Option/Argument in argument defaults is the standard CLI idiom; B008 forbids it.
 "scripts/*" = ["B008"]
+"src/audio_priors/cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.10"
