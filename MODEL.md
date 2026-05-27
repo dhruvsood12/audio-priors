@@ -14,10 +14,13 @@ service falls back to audio-derived heuristics.
 
 ## Out of scope
 
-[Phase 9 will fill in. Holding for the brief's Section 12 list:
-real-time Spotify API integration, deep-learning audio embeddings,
-online A/B testing, multi-user personalization, live deployment
-beyond local Streamlit and the Docker image.]
+- Real-time Spotify Web API integration (the live endpoint was
+  deprecated for new applications in November 2024).
+- Deep-learning audio embeddings (MERT, CLAP, JukeBox); we use the
+  pre-computed 10-feature Spotify summary.
+- Online A/B testing infrastructure.
+- Multi-user personalization or session modeling.
+- Live deployment beyond local Streamlit and the GHCR Docker image.
 
 ## Top features
 
@@ -101,41 +104,84 @@ curve tracking the diagonal closely.
 
 ## Training data
 
-[Phase 9 will summarize the corpus, schema, dedup, and range gates.
-Reference: `DATA.md`. 1,165,501 rows in the parquet, 81,987 with
-non-null `popularity` and the ten audio features.]
+`data/processed/tracks.parquet` after deduplication and range
+validation: 1,165,501 rows total, of which 81,987 carry a non-null
+`popularity` value and all ten audio features. The 80/20 stratified
+split (`random_state=42`) yields 65,589 training rows and 16,398
+test rows. Class balance at `q=0.20`: 21.09% positive. See
+`DATA.md` for the full per-source breakdown, the Spotify Web API
+deprecation note, and the four preprocessing decisions.
 
 ## Evaluation data
 
-[Phase 9 will summarize the 80/20 stratified hold-out. 16,398 test
-rows, `random_state=42`, positive rate 0.211.]
+The 16,398-row hold-out from the 80/20 stratified split,
+`random_state=42`, positive rate 0.211. Every metric in this card
+plus `outputs/tables/metrics.csv` is computed against this set.
 
 ## Metrics
 
-[Phase 9 will reference `outputs/tables/metrics.csv` and reproduce
-the headline numbers with CIs. Phase 3 produced them; phase 9 chooses
-the headline format.]
+| Model | ROC-AUC | 95% CI | PR-AUC | F1 (best thr) | Brier |
+|---|---|---|---|---|---|
+| **genre_prior** | **0.852** | **(0.846, 0.859)** | 0.610 | 0.586 | 0.118 |
+| lightgbm | 0.711 | (0.702, 0.721) | 0.394 | 0.442 | 0.202 |
+| xgboost | 0.708 | (0.699, 0.718) | 0.392 | 0.440 | 0.210 |
+| random_forest | 0.706 | (0.696, 0.715) | 0.390 | 0.434 | 0.151 |
+| logistic | 0.629 | (0.618, 0.639) | 0.299 | 0.384 | 0.237 |
+
+No audio-only model beats the genre prior. The audio-priors
+framing treats this as the cold-start ceiling: when no genre is
+known, the LightGBM at 0.71 AUC is the prior we ship.
 
 ## Fairness
 
-[Phase 9 will surface the per-genre AUC table at
-`outputs/tables/per_genre_auc.csv`, with the ranges and the
-documented anti-predicted genres.]
+Per-genre AUC ranges from 0.29 (`study`) to 0.97 (`mpb`) across
+the 105 genres with at least 20 test rows. The bottom five
+(`study`, `breakbeat`, `salsa`, `pop, R&B`, `j-idol`) are
+anti-predicted: the same audio signals that flag sticky tracks in
+the global sample flag the opposite within those buckets. The
+finding is real but rests on small group sizes (20 to 50 test rows
+each); larger samples would say whether the direction holds.
+
+Full table in `outputs/tables/per_genre_auc.csv`. Recommend
+treating predictions in the anti-predicted genres as low
+confidence regardless of the model's reported probability.
 
 ## Limitations
 
-[Phase 9 will write the narrative version. Headline known
-limitations: popularity is a market signal not a quality signal, the
-105-genre slice is uneven, audio features cannot recover marketing
-context, calibration is sample-driven, the dataset's audio features
-predate the November 2024 Spotify Web API deprecation.]
+- Popularity is a market signal, not a quality signal. It mixes
+  artist reach, marketing spend, and timing. The model predicts
+  market success conditional on the existing 2020-2022 streaming
+  landscape; it does not predict whether a track is good.
+- Audio features predate the November 2024 Spotify Web API
+  deprecation. We do not call the live API. Newer tracks released
+  after the snapshot are out of distribution.
+- The 125-genre slice is uneven. Per-genre AUCs at small n are
+  noisy and the anti-predicted buckets in the fairness section
+  rest on 20-50 test rows.
+- Calibration is fit on a CV split of the training set; per-genre
+  recalibration would likely tighten reliability in specific
+  buckets but is out of scope here.
+- The cold-start framing assumes genre is unknown at inference
+  time. When genre is reliably known, the genre prior is a much
+  stronger baseline than the audio model.
 
 ## Ethical considerations
 
-[Phase 9. Label-leakage risks via popularity-by-genre, the fairness
-implications of audio-only popularity prediction for unsigned
-artists, and the cold-start framing that explicitly does not rely on
-listener behavior.]
+- **Label leakage via popularity-by-genre.** Popularity is
+  correlated with genre, so a model that "predicts popularity from
+  audio" partly predicts genre from audio. The cold-start framing
+  is more defensible than a "what makes a song addictive" framing
+  because it explicitly positions the audio score as one input to a
+  larger recommender, not a quality verdict.
+- **Implications for unsigned artists.** A system that scores
+  tracks on a popularity proxy can reinforce existing distribution
+  advantages. Down-stream uses should pair the audio score with a
+  recency boost or an exposure-fairness layer.
+- **No listener behavior used.** The cold-start framing deliberately
+  excludes skip and replay data. This is honest about what audio
+  alone can do, but it also means the model cannot capture
+  listener-level preferences. Personalization is out of scope here
+  (see "Out of scope").
 
 ## Contact
 
