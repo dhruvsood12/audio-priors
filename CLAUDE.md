@@ -12,7 +12,7 @@ not committed).
 - [x] Phase 3: Modeling
 - [x] Phase 4: Interpretability and calibration
 - [x] Phase 5: Cold-start recommender
-- [ ] Phase 6: Streamlit demo
+- [x] Phase 6: Streamlit demo
 - [ ] Phase 7: Test coverage sweep
 - [ ] Phase 8: CI, Docker, hooks
 - [ ] Phase 9: README, DATA.md, MODEL.md
@@ -20,8 +20,8 @@ not committed).
 
 ## Current focus
 
-Phase 5 is complete on the `feat/phase-5-recommender` branch. PR open,
-waiting for Dhruv's approval before opening Phase 6.
+Phase 6 is complete on the `feat/phase-6-app` branch. PR open, waiting
+for Dhruv's approval before opening Phase 7.
 
 ## Open questions
 
