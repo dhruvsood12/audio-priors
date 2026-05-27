@@ -108,4 +108,4 @@ disable_error_code = ["no-any-return"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers"
+addopts = "-q --strict-markers --cov=src/audio_priors --cov-fail-under=70 --cov-report=term-missing"
