@@ -3,22 +3,22 @@
 ## What changed
 
 Added:
-- `src/audio_priors/features.py` — `AUDIO_FEATURES` constant plus
+- `src/audio_priors/features.py` - `AUDIO_FEATURES` constant plus
   `select_audio_features`, `feature_columns_present`, and
   `has_full_feature_set` helpers.
-- `tests/test_features.py` — 5 tests covering the new module.
-- `tests/test_pipeline.py` — 3 end-to-end tests on synthetic data
+- `tests/test_features.py` - 5 tests covering the new module.
+- `tests/test_pipeline.py` - 3 end-to-end tests on synthetic data
   (harmonize / dedup / validate round-trip, full label-to-evaluate
   pipeline, FAISS corpus build).
-- `tests/test_labels_property.py` — Hypothesis property tests on
+- `tests/test_labels_property.py` - Hypothesis property tests on
   `popularity_z`, `sticky_top_q`, and `sticky_top_q_by_genre`.
-- `tests/test_recommend_more.py` — 7 tests pushing recommender
+- `tests/test_recommend_more.py` - 7 tests pushing recommender
   coverage from 47% to 80%.
 
 Modified:
-- `pyproject.toml` — pytest `addopts` adds
+- `pyproject.toml` - pytest `addopts` adds
   `--cov=src/audio_priors --cov-fail-under=70 --cov-report=term-missing`.
-- `CLAUDE.md` — Phase 7 box checked.
+- `CLAUDE.md` - Phase 7 box checked.
 
 ## Tests
 
