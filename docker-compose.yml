@@ -1,9 +1,29 @@
 services:
-  pipeline:
+  cli:
     build: .
-    image: songaddiction:latest
-    container_name: songaddiction-pipeline
+    image: audio-priors:latest
+    container_name: audio-priors-cli
+    environment:
+      - OMP_NUM_THREADS=1
     volumes:
       - ./data:/app/data
       - ./outputs:/app/outputs
-      - ./notebooks:/app/notebooks
+
+  app:
+    build: .
+    image: audio-priors:latest
+    container_name: audio-priors-app
+    entrypoint: streamlit
+    command:
+      - run
+      - app/streamlit_app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+    ports:
+      - "8501:8501"
+    environment:
+      - OMP_NUM_THREADS=1
+    volumes:
+      - ./outputs:/app/outputs
