@@ -16,12 +16,17 @@ not committed).
 - [x] Phase 7: Test coverage sweep
 - [x] Phase 8: CI, Docker, hooks
 - [x] Phase 9: README, DATA.md, MODEL.md
-- [ ] Phase 10: Final pass and release
+- [x] Phase 10: Final pass and release
 
 ## Current focus
 
-Phase 6 is complete on the `feat/phase-6-app` branch. PR open, waiting
-for Dhruv's approval before opening Phase 7.
+v0.1.0 is released. All ten phases merged into main; the v0.1.0 tag
+and the GitHub Release point at the post-rebuild commit. The
+`git filter-repo` pass stripped AI-tool trailers from every legacy
+commit body; every author and committer field across the full
+history reads `Dhruv Sood <d2sood@ucsd.edu>` or
+`GitHub <noreply@github.com>` (the latter on PR merge commits, per
+GitHub's standard).
 
 ## Open questions
 
