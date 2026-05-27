@@ -11,7 +11,7 @@ not committed).
 - [x] Phase 2: EDA and label design
 - [x] Phase 3: Modeling
 - [x] Phase 4: Interpretability and calibration
-- [ ] Phase 5: Cold-start recommender
+- [x] Phase 5: Cold-start recommender
 - [ ] Phase 6: Streamlit demo
 - [ ] Phase 7: Test coverage sweep
 - [ ] Phase 8: CI, Docker, hooks
@@ -20,8 +20,8 @@ not committed).
 
 ## Current focus
 
-Phase 4 is complete on the `feat/phase-4-interpret` branch. PR open,
-waiting for Dhruv's approval before opening Phase 5.
+Phase 5 is complete on the `feat/phase-5-recommender` branch. PR open,
+waiting for Dhruv's approval before opening Phase 6.
 
 ## Open questions
 
