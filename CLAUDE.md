@@ -15,7 +15,7 @@ not committed).
 - [x] Phase 6: Streamlit demo
 - [x] Phase 7: Test coverage sweep
 - [x] Phase 8: CI, Docker, hooks
-- [ ] Phase 9: README, DATA.md, MODEL.md
+- [x] Phase 9: README, DATA.md, MODEL.md
 - [ ] Phase 10: Final pass and release
 
 ## Current focus

@@ -3,30 +3,30 @@
 ## What changed
 
 Added:
-- `src/audio_priors/cli.py` — top-level Typer app exposed as the
+- `src/audio_priors/cli.py` - top-level Typer app exposed as the
   ``audio-priors`` console script. Six subcommands delegate to the
   existing `scripts/*.py` files (`download-data`, `make-demo-data`,
   `train`, `interpret`, `recommend-eval`, `prepare-app`).
-- `Dockerfile` — multi-stage build on `python:3.11-slim`. Builder
+- `Dockerfile` - multi-stage build on `python:3.11-slim`. Builder
   installs the package with `[notebooks,app]` extras into
   `/opt/venv`; the runtime stage copies the venv, src, scripts, and
   app/ under a non-root `app` user. `OMP_NUM_THREADS=1` baked in so
   LightGBM does not segfault on small runners. ENTRYPOINT is
   `audio-priors`, default CMD is `--help`.
-- `docker-compose.yml` — two services. `cli` runs the CLI with data
+- `docker-compose.yml` - two services. `cli` runs the CLI with data
   and outputs mounted. `app` runs the Streamlit demo on port 8501.
-- `.github/workflows/release.yml` — on `v*` tag push, build the
+- `.github/workflows/release.yml` - on `v*` tag push, build the
   image and push to GHCR under `:vX.Y.Z` and `:latest`.
 
 Modified:
-- `.github/workflows/ci.yml` — four parallel jobs: `lint-test` with a
+- `.github/workflows/ci.yml` - four parallel jobs: `lint-test` with a
   Python 3.10 / 3.11 / 3.12 matrix (ruff + ruff format + mypy +
   pytest with `--cov-fail-under=70`), `pip-audit`, `docker` (build
   + `docker run --rm audio-priors:ci --help`), and `style-gates`
   (em-dash grep and banned-word grep).
-- `pyproject.toml` — `B008` per-file ignore extended to
+- `pyproject.toml` - `B008` per-file ignore extended to
   `src/audio_priors/cli.py` so the Typer default-arg idiom passes.
-- `CLAUDE.md` — Phase 8 box checked.
+- `CLAUDE.md` - Phase 8 box checked.
 
 ## Acceptance criteria
 
