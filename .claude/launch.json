@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "streamlit",
+      "runtimeExecutable": ".venv311/bin/streamlit",
+      "runtimeArgs": [
+        "run",
+        "app/streamlit_app.py",
+        "--server.port",
+        "8501",
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false",
+        "--server.fileWatcherType",
+        "none"
+      ],
+      "port": 8501
+    }
+  ]
+}
