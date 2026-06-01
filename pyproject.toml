@@ -46,6 +46,10 @@ dev = [
     "pre-commit>=4.0",
     "pip-audit>=2.7",
     "pandas-stubs>=2.0",
+    # Streamlit is the app runtime; pulled into dev so tests/test_app.py can
+    # import the helpers under tests/. App extra is preserved for users who
+    # only want the demo runtime without the rest of the dev tooling.
+    "streamlit>=1.39",
 ]
 
 [project.urls]
