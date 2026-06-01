@@ -11,7 +11,9 @@ repos:
         args: [--maxkb=1024]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.4
+    # Keep in lockstep with the ruff CI runs (pip install -e .[dev] resolves
+    # to a current ruff; older pre-commit pins disagree on formatter output).
+    rev: v0.15.11
     hooks:
       - id: ruff
         args: [--fix]
