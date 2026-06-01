@@ -10,13 +10,17 @@ permissions:
   contents: read
 
 jobs:
-  lint:
+  lint-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install package with dev extras
         run: pip install -e ".[dev]"
@@ -24,3 +28,46 @@ jobs:
         run: ruff check .
       - name: ruff format check
         run: ruff format --check .
+      - name: mypy
+        run: mypy src/audio_priors --ignore-missing-imports
+      - name: pytest
+        run: pytest -q --cov=src/audio_priors --cov-fail-under=70 --cov-report=term
+
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: pip-audit
+        run: pip-audit --strict || true
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t audio-priors:ci .
+      - name: Top-level help exits zero
+        run: docker run --rm audio-priors:ci --help
+      - name: Subcommand help exits zero
+        run: docker run --rm audio-priors:ci train --help
+
+  style-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: em-dash grep
+        run: |
+          if grep -RnE '[—–]' --include='*.md' .; then
+            echo "em-dash found"; exit 1
+          fi
+      - name: banned-word grep
+        run: |
+          if grep -RinE 'delve|leverage|rigorous|robust|comprehensive|transparent|cutting-edge|seamless|holistic|furthermore|moreover|intricate|nuanced' --include='*.md' .; then
+            echo "banned word found"; exit 1
+          fi
