@@ -131,7 +131,11 @@ def train_lightgbm(
         "verbose": -1,
         "random_state": RANDOM_STATE,
         "class_weight": "balanced",
-        "n_jobs": -1,
+        # n_jobs=1 to avoid the macOS arm64 LightGBM OpenMP segfault observed
+        # with -1 on this corpus size. Training time stays acceptable (~2s on
+        # 65K rows); CI runners do not have this issue but the value is safe
+        # on both.
+        "n_jobs": 1,
     }
 
     def objective(trial: optuna.Trial) -> float:
@@ -195,7 +199,9 @@ def train_xgboost(
         "scale_pos_weight": float(n_neg) / float(n_pos),
         "tree_method": "hist",
         "eval_metric": "auc",
-        "n_jobs": -1,
+        # Match the LightGBM defaults; XGBoost has not been seen to segfault
+        # on macOS arm64 but keeping the thread count predictable is cheap.
+        "n_jobs": 1,
     }
 
     def objective(trial: optuna.Trial) -> float:
