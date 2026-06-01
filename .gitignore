@@ -10,12 +10,16 @@ outputs/models/*
 !outputs/models/.gitkeep
 outputs/figures/*
 !outputs/figures/.gitkeep
-# Phase 6 demo screenshot is a documentation artifact (cannot be regenerated
-# by headless CI without Playwright); track it explicitly. Phase 8 will add a
-# Playwright job that re-captures on each main push.
+# Documentation artifacts referenced from README.md and MODEL.md. They are
+# regenerable via `make train` + `make interpret`; tracking them keeps the
+# GitHub landing page from showing broken-image icons and 404s.
 !outputs/figures/demo.png
+!outputs/figures/07_shap_bar.png
+!outputs/figures/10_calibration.png
 outputs/tables/*
 !outputs/tables/.gitkeep
+!outputs/tables/metrics.csv
+!outputs/tables/per_genre_auc.csv
 
 # experiment tracking
 mlruns/
