@@ -19,11 +19,9 @@ dependencies = [
     "shap>=0.46",
     "optuna>=4.0",
     "matplotlib>=3.9",
-    "seaborn>=0.13",
     "pandera>=0.20",
     "pydantic>=2.9",
     "typer>=0.12",
-    "mlflow>=2.17",
     "faiss-cpu>=1.9",
     "pyarrow>=17.0",
     "kaggle>=1.6",
@@ -33,6 +31,7 @@ dependencies = [
 notebooks = [
     "jupyter>=1.0",
     "ipykernel>=6.25",
+    "seaborn>=0.13",
 ]
 app = [
     "streamlit>=1.39",
@@ -96,7 +95,6 @@ module = [
     "lightgbm.*",
     "xgboost.*",
     "optuna.*",
-    "mlflow.*",
     "pandera.*",
     "faiss.*",
     "kaggle.*",
