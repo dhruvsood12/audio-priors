@@ -20,13 +20,24 @@ not committed).
 
 ## Current focus
 
-v0.1.0 is released. All ten phases merged into main; the v0.1.0 tag
-and the GitHub Release point at the post-rebuild commit. The
-`git filter-repo` pass stripped AI-tool trailers from every legacy
-commit body; every author and committer field across the full
-history reads `Dhruv Sood <d2sood@ucsd.edu>` or
-`GitHub <noreply@github.com>` (the latter on PR merge commits, per
-GitHub's standard).
+v0.1.0 is released and a ruthless 7-lens review (workflow ID
+`wf_b5d24c86-b5f`) surfaced 104 findings, 64 confirmed real. The
+visible-to-scan blockers landed in commits `fb6fa68` through
+`901585f`: missing artifacts now tracked, README leads with the
+audio-only headline, CI workflow restored to the documented
+4-job shape, Makefile quickstart works on a fresh clone,
+Dockerfile copies LICENSE, cli.py resolves scripts via cwd-walk
+instead of broken `parents[2]`, LightGBM/XGBoost n_jobs pinned
+to 1, CLI + Optuna paths gained dedicated tests, mlflow dropped,
+seaborn moved to the notebooks extra.
+
+Five ML methodology issues remain as tracked follow-ups (see
+GitHub issues): artist-grouped split, train-only popularity
+quantile, F1 at a fixed threshold, per-genre AUC with
+multiple-comparison correction, like-for-like Brier
+recalibration. These are disclosed up front in
+docs/RESUME_BULLETS.md so they read as known-and-tracked rather
+than discovered-by-the-interviewer.
 
 ## Open questions
 
