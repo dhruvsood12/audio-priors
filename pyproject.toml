@@ -107,7 +107,11 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "audio_priors.*"
-disable_error_code = ["no-any-return"]
+# type-arg: numpy's ndarray stubs use PEP 646 variadic generics (Python 3.11+).
+# On Python 3.10 those degrade to Generic[Any], which mypy strict then flags as
+# missing type arguments. The runtime contract is identical across versions; the
+# proper fix is `npt.NDArray[...]` everywhere (40+ sites, deferred).
+disable_error_code = ["no-any-return", "type-arg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
