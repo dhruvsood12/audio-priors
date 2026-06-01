@@ -1,25 +1,28 @@
 # audio-priors
 
-Audio-feature priors for cold-start music recommendation: how far Spotify audio features alone carry popularity discrimination and cold-start retrieval, reported with bootstrap confidence intervals and calibration.
+Cold-start music recommendation from 10 Spotify audio features. When a fresh track lands with no genre tag and no listener history, how far does audio alone carry you?
+
+**Headline:** a tuned LightGBM hits **ROC-AUC 0.711 (95% CI 0.702, 0.721)** on a 16,398-row hold-out, with isotonic-calibrated probabilities (Brier 0.205 to 0.150, a 27% relative cut). A FAISS retriever over the same features beats random Recall@10 by **11.6x** with non-overlapping CIs across 7,645 cold-start queries.
 
 [![CI](https://github.com/dhruvsood12/audio-priors/actions/workflows/ci.yml/badge.svg)](https://github.com/dhruvsood12/audio-priors/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![Coverage 70%+](https://img.shields.io/badge/coverage-78%25-green)](pyproject.toml)
 
 ## Results
 
-Train and test on 81,987 popularity-bearing tracks (`sticky_top_q(q=0.20)`, positive rate 0.211, 80/20 stratified split, `random_state=42`). Bootstrap 1,000 resamples on the test set.
+The audio-priors framing is the cold-start case: genre is unknown at inference time, audio is what you have. Numbers below are computed against the 16,398-row hold-out from the 81,987-row labeled subset (`sticky_top_q(q=0.20)`, realized positive rate 0.211, 80/20 stratified split, `random_state=42`). Bootstrap 1,000 resamples.
 
-| Model | ROC-AUC | 95% CI | PR-AUC | F1 at best threshold |
-|---|---|---|---|---|
-| **genre_prior** | **0.852** | **(0.846, 0.859)** | 0.610 | 0.586 |
-| lightgbm | 0.711 | (0.702, 0.721) | 0.394 | 0.442 |
-| xgboost | 0.708 | (0.699, 0.718) | 0.392 | 0.440 |
-| random_forest | 0.706 | (0.696, 0.715) | 0.390 | 0.434 |
-| logistic | 0.629 | (0.618, 0.639) | 0.299 | 0.384 |
+| Model | ROC-AUC | 95% CI | PR-AUC | F1\* | Brier |
+|---|---|---|---|---|---|
+| **lightgbm** (audio only) | **0.711** | **(0.702, 0.721)** | 0.394 | 0.442 | 0.202 |
+| xgboost (audio only) | 0.708 | (0.699, 0.718) | 0.392 | 0.440 | 0.210 |
+| random_forest (audio only) | 0.706 | (0.696, 0.715) | 0.390 | 0.434 | 0.151 |
+| logistic (audio only) | 0.629 | (0.618, 0.639) | 0.299 | 0.384 | 0.237 |
+| genre_prior (context, not audio) | 0.852 | (0.846, 0.859) | 0.610 | 0.586 | 0.118 |
 
-The genre prior outperforms every audio-only model by about 14 AUC points with non-overlapping confidence intervals. The audio-priors framing is the cold-start case: when a fresh track arrives without a reliable genre tag, the 0.71 audio-only ceiling is the relevant prior.
+\*F1 at the F1-maximizing threshold computed on the test set. This is an in-sample upper bound on F1, not a deployable threshold. See [MODEL.md](MODEL.md) for the fixed-threshold version and the [open issue tracker](https://github.com/dhruvsood12/audio-priors/issues) for the fix-in-progress.
+
+A track is **sticky** if its Spotify popularity sits at or above the 80th percentile (top 20%) of the labeled corpus; the realized positive rate is 0.211 because of integer-popularity ties at the cutoff. The genre_prior row is the strong baseline you reach for when genre is *known*; the audio-only row is what you ship when it is not. The 14-point gap between them quantifies the value of categorical genre information beyond what audio summaries can recover.
 
 ![SHAP summary for the winning tree model](outputs/figures/07_shap_bar.png)
 
@@ -34,16 +37,19 @@ Three pipelines build on a single 1.16-million-track corpus combining maharshipa
 ## Reproduce
 
 ```bash
-make install-dev    # editable install with dev, notebooks, app extras
-make data           # download Kaggle sources, write data/processed/tracks.parquet
-make train          # train all five models, write outputs/tables/metrics.csv
-make app            # launch the Streamlit demo on http://localhost:8501
+make install-dev      # editable install with dev, notebooks, app extras
+make data             # Kaggle download + processed parquet (needs ~/.kaggle/kaggle.json)
+make train            # train all five models, write outputs/tables/metrics.csv
+make prepare-app      # bake model + FAISS artifacts to outputs/models/
+make app              # launch the Streamlit demo on http://localhost:8501
 ```
+
+No Kaggle account? `make data-demo` generates a 2K-row synthetic CSV in the same schema so the pipeline runs end-to-end without credentials.
 
 Or with Docker:
 
 ```bash
-docker compose up app    # builds the image and serves the Streamlit demo
+docker compose up app    # builds the image, prepares artifacts, serves Streamlit
 ```
 
 ## Data
@@ -103,4 +109,6 @@ Track-search mode picks a track and shows the sticky probability with per-featur
 
 ## License and citation
 
-MIT. See [LICENSE](LICENSE). Cite as: Dhruv Sood, "audio-priors: cold-start audio-feature priors for music recommendation," v0.1.0, 2026.
+MIT. See [LICENSE](LICENSE). The MIT license applies to code only; the three underlying Kaggle datasets retain their original licenses (ODbL-1.0, unknown, other; see [DATA.md](DATA.md)). The processed corpus is not redistributed by this project.
+
+Cite as: Dhruv Sood, "audio-priors: cold-start audio-feature priors for music recommendation," v0.1.0, 2026.
