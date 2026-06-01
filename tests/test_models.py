@@ -7,8 +7,10 @@ import pandas as pd
 
 from audio_priors.models import (
     train_genre_prior,
+    train_lightgbm,
     train_logistic,
     train_random_forest,
+    train_xgboost,
 )
 
 
@@ -73,4 +75,28 @@ def test_train_logistic_beats_chance_on_a_learnable_target() -> None:
     X, y, _ = _toy_xy(seed=1)
     m = train_logistic(X, y)
     score = m.predict_proba(X)[:, 1]
+    assert roc_auc_score(y, score) > 0.7
+
+
+def test_train_lightgbm_fits_with_short_optuna_search() -> None:
+    """train_lightgbm should complete a tiny Optuna search and produce a useful model.
+
+    Two trials, 15-second budget, toy data: catches the Optuna integration
+    path and the LightGBM refit at the head of `train_lightgbm`.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    X, y, _ = _toy_xy(seed=2, n=400)
+    model = train_lightgbm(X, y, n_trials=2, time_budget_s=15)
+    score = model.predict_proba(X)[:, 1]
+    assert roc_auc_score(y, score) > 0.7
+
+
+def test_train_xgboost_fits_with_short_optuna_search() -> None:
+    """train_xgboost should complete a tiny Optuna search and produce a useful model."""
+    from sklearn.metrics import roc_auc_score
+
+    X, y, _ = _toy_xy(seed=2, n=400)
+    model = train_xgboost(X, y, n_trials=2, time_budget_s=15)
+    score = model.predict_proba(X)[:, 1]
     assert roc_auc_score(y, score) > 0.7
