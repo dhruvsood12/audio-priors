@@ -60,6 +60,9 @@ def main(
     typer.echo(f"loading {parquet_path}")
     df = pd.read_parquet(parquet_path)
     df = df.dropna(subset=["popularity"]).copy()
+    # Full-corpus threshold is correct HERE: this builds the deployed app
+    # artifact, not an evaluation. Train/test scripts must use
+    # labels.sticky_top_q_train_threshold instead.
     df["sticky"] = labels.sticky_top_q(df, q=q)
     df = df.dropna(subset=FEATURE_COLS).copy()
     typer.echo(f"labeled rows: {len(df):,} | positive rate: {df['sticky'].mean():.4f}")

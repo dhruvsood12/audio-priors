@@ -1,9 +1,13 @@
 """Phase 4 interpretability CLI.
 
-Loads ``data/processed/tracks.parquet``, builds the same labeled subset
-that Phase 3 trained on, refits a LightGBM with reasonable default
-hyperparameters (skipping the Optuna search for speed), and runs four
-interpretability analyses with figures and tables.
+Loads ``data/processed/tracks.parquet``, rebuilds the labeled subset
+under the same protocol as ``scripts/train.py`` (grouped split by
+default, popularity threshold fit on the train fence only, frozen
+hyperparameters from ``configs/hparams.json``), refits the LightGBM, and
+runs four interpretability analyses with figures and tables. Keeping the
+protocol identical to the metrics table matters: a model card must not
+quote attribution and calibration from one experiment beside metrics
+from another.
 
 Writes:
 
@@ -25,9 +29,8 @@ from pathlib import Path
 import lightgbm as lgb
 import pandas as pd
 import typer
-from sklearn.model_selection import train_test_split
 
-from audio_priors import interpret, labels
+from audio_priors import interpret, labels, splits
 
 app = typer.Typer(add_completion=False)
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,11 +49,26 @@ FEATURE_COLS = [
 ]
 
 
+_LGBM_FIXED = {
+    "n_estimators": 300,
+    "bagging_freq": 5,
+    "objective": "binary",
+    "verbose": -1,
+    "random_state": 42,
+    "class_weight": "balanced",
+    # n_jobs=1: same macOS arm64 OpenMP guard as models.py.
+    "n_jobs": 1,
+}
+
+
 @app.command()
 def main(
     parquet_path: Path = typer.Option(ROOT / "data" / "processed" / "tracks.parquet"),
-    q: float = typer.Option(0.20, help="Top-q fraction for sticky_top_q."),
-    test_size: float = typer.Option(0.20, help="Stratified hold-out fraction."),
+    q: float = typer.Option(0.20, help="Top-q fraction for the sticky label."),
+    split: str = typer.Option("grouped", help="Protocol arm: grouped or random."),
+    test_size: float = typer.Option(0.20, help="Held-out fraction."),
+    val_size: float = typer.Option(0.20, help="Validation fraction of the train side."),
+    hparams_path: Path = typer.Option(ROOT / "configs" / "hparams.json"),
     coef_resamples: int = typer.Option(200, help="Bootstrap resamples for logistic coefficients."),
     perm_repeats: int = typer.Option(30, help="Permutation importance repeats."),
     figures_dir: Path = typer.Option(ROOT / "outputs" / "figures"),
@@ -61,32 +79,25 @@ def main(
     typer.echo(f"loading {parquet_path}")
     df = pd.read_parquet(parquet_path)
     df = df.dropna(subset=["popularity"]).copy()
-    df["y"] = labels.sticky_top_q(df, q=q)
     df = df.dropna(subset=FEATURE_COLS).copy()
-    typer.echo(f"labeled rows: {len(df):,} | positive rate: {df['y'].mean():.4f}")
+    df = df.reset_index(drop=True)
 
-    X = df[FEATURE_COLS]
-    y = df["y"]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, stratify=y, random_state=42
+    sp = splits.protocol_split(df, split, test_size=test_size, val_size=val_size)
+    y_all, pop_thr = labels.sticky_top_q_train_threshold(df, df.index[sp.train], q)
+    # No decision threshold is picked here, so the model trains on the full
+    # train fence (fit+val), matching what the calibration tables describe.
+    X_train = df.iloc[sp.train][FEATURE_COLS]
+    y_train = y_all.iloc[sp.train]
+    X_test = df.iloc[sp.test][FEATURE_COLS]
+    y_test = y_all.iloc[sp.test]
+    typer.echo(
+        f"arm {split} | train: {len(X_train):,} | test: {len(X_test):,} | "
+        f"pop threshold {pop_thr:.1f} | train pos {y_train.mean():.4f}"
     )
-    typer.echo(f"train: {len(X_train):,} | test: {len(X_test):,}")
 
-    typer.echo("training LightGBM (default-ish hyperparameters)")
-    lgbm = lgb.LGBMClassifier(
-        n_estimators=300,
-        num_leaves=63,
-        learning_rate=0.05,
-        feature_fraction=0.9,
-        bagging_fraction=0.9,
-        bagging_freq=5,
-        objective="binary",
-        verbose=-1,
-        random_state=42,
-        class_weight="balanced",
-        n_jobs=-1,
-    )
+    searched = json.loads(hparams_path.read_text())["lightgbm"]
+    typer.echo(f"training LightGBM (frozen hyperparameters from {hparams_path.name})")
+    lgbm = lgb.LGBMClassifier(**{**searched, **_LGBM_FIXED})
     lgbm.fit(X_train, y_train)
 
     figures_dir.mkdir(parents=True, exist_ok=True)
@@ -109,19 +120,7 @@ def main(
 
     typer.echo("calibration + isotonic recalibration")
     cal = interpret.calibration_with_isotonic(
-        lgb.LGBMClassifier(
-            n_estimators=300,
-            num_leaves=63,
-            learning_rate=0.05,
-            feature_fraction=0.9,
-            bagging_fraction=0.9,
-            bagging_freq=5,
-            objective="binary",
-            verbose=-1,
-            random_state=42,
-            class_weight="balanced",
-            n_jobs=-1,
-        ),
+        lgb.LGBMClassifier(**{**searched, **_LGBM_FIXED}),
         X_train,
         y_train,
         X_test,
