@@ -106,6 +106,7 @@ Track-search mode picks a track and shows the sticky probability with per-featur
 - Replace the 10-feature embedding with a deep audio model (MERT, CLAP) and see if the gap to the genre prior closes.
 - Per-genre calibration: the global isotonic fit may understate or overstate confidence within specific buckets.
 - A/B style offline eval against Last.fm play-count data once available.
+- Creating V2 Soon!
 
 ## License and citation
 
