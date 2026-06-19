@@ -27,7 +27,7 @@ import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import GroupKFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -100,14 +100,32 @@ def train_random_forest(
     return model
 
 
+def _inner_cv_splits(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    groups: np.ndarray | None,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """5-fold inner-CV indices: grouped when ``groups`` is given.
+
+    ``GroupKFold`` keeps every group's rows in one fold, so a tuner using
+    these folds never scores a model on artists it trained on.
+    """
+
+    if groups is None:
+        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+        return list(skf.split(X_train, y_train))
+    gkf = GroupKFold(n_splits=5)
+    return list(gkf.split(X_train, y_train, groups=groups))
+
+
 def _cv_score_lgbm(
     X_train: pd.DataFrame,
     y_train: pd.Series,
     params: dict[str, Any],
+    groups: np.ndarray | None = None,
 ) -> float:
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
     aucs: list[float] = []
-    for tr_idx, va_idx in skf.split(X_train, y_train):
+    for tr_idx, va_idx in _inner_cv_splits(X_train, y_train, groups):
         model = lgb.LGBMClassifier(**params)
         model.fit(X_train.iloc[tr_idx], y_train.iloc[tr_idx])
         scores = model.predict_proba(X_train.iloc[va_idx])[:, 1]
@@ -121,8 +139,18 @@ def train_lightgbm(
     *,
     n_trials: int = 30,
     time_budget_s: int = 300,
+    params: dict[str, Any] | None = None,
+    groups: np.ndarray | None = None,
 ) -> lgb.LGBMClassifier:
-    """Optuna search over LightGBM hyperparameters; refit best on full train."""
+    """LightGBM trainer: Optuna search, or a direct refit from frozen params.
+
+    With ``params`` (the searched hyperparameters, e.g. from
+    ``configs/hparams.json``) the Optuna search is skipped entirely and the
+    model is refit directly; this is the protocol path, where tuning
+    happened once and every arm refits read-only. ``groups`` switches the
+    search's inner CV to ``GroupKFold`` so the tuner never scores on
+    artists it trained on; it is ignored when ``params`` is given.
+    """
 
     fixed = {
         "bagging_freq": 5,
@@ -138,8 +166,13 @@ def train_lightgbm(
         "n_jobs": 1,
     }
 
+    if params is not None:
+        model = lgb.LGBMClassifier(**{**params, **fixed})
+        model.fit(X_train, y_train)
+        return model
+
     def objective(trial: optuna.Trial) -> float:
-        params = {
+        trial_params = {
             "num_leaves": trial.suggest_int("num_leaves", 15, 255),
             "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
@@ -147,7 +180,7 @@ def train_lightgbm(
             "bagging_fraction": trial.suggest_float("bagging_fraction", 0.5, 1.0),
             **fixed,
         }
-        return _cv_score_lgbm(X_train, y_train, params)
+        return _cv_score_lgbm(X_train, y_train, trial_params, groups=groups)
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     sampler = optuna.samplers.TPESampler(seed=RANDOM_STATE)
@@ -169,10 +202,10 @@ def _cv_score_xgb(
     X_train: pd.DataFrame,
     y_train: pd.Series,
     params: dict[str, Any],
+    groups: np.ndarray | None = None,
 ) -> float:
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
     aucs: list[float] = []
-    for tr_idx, va_idx in skf.split(X_train, y_train):
+    for tr_idx, va_idx in _inner_cv_splits(X_train, y_train, groups):
         model = xgb.XGBClassifier(**params)
         model.fit(X_train.iloc[tr_idx], y_train.iloc[tr_idx])
         scores = model.predict_proba(X_train.iloc[va_idx])[:, 1]
@@ -186,8 +219,16 @@ def train_xgboost(
     *,
     n_trials: int = 30,
     time_budget_s: int = 300,
+    params: dict[str, Any] | None = None,
+    groups: np.ndarray | None = None,
 ) -> xgb.XGBClassifier:
-    """Optuna search over XGBoost hyperparameters; refit best on full train."""
+    """XGBoost trainer: Optuna search, or a direct refit from frozen params.
+
+    Same contract as :func:`train_lightgbm`: ``params`` skips the search
+    (the protocol path; ``scale_pos_weight`` is still recomputed from the
+    CURRENT ``y_train`` because it is class-balance state, not a searched
+    hyperparameter), and ``groups`` makes the search's inner CV grouped.
+    """
 
     n_pos = max(int(y_train.sum()), 1)
     n_neg = int(len(y_train) - n_pos)
@@ -204,8 +245,13 @@ def train_xgboost(
         "n_jobs": 1,
     }
 
+    if params is not None:
+        model = xgb.XGBClassifier(**{**params, **fixed})
+        model.fit(X_train, y_train)
+        return model
+
     def objective(trial: optuna.Trial) -> float:
-        params = {
+        trial_params = {
             "max_depth": trial.suggest_int("max_depth", 3, 10),
             "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
@@ -213,7 +259,7 @@ def train_xgboost(
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
             **fixed,
         }
-        return _cv_score_xgb(X_train, y_train, params)
+        return _cv_score_xgb(X_train, y_train, trial_params, groups=groups)
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     sampler = optuna.samplers.TPESampler(seed=RANDOM_STATE)

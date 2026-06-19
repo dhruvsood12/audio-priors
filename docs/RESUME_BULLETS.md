@@ -7,119 +7,127 @@ the bullets glide over.
 
 ## Headline (resume top line)
 
-ML / Data Science | Cold-start music recommender, calibrated audio classifier with bootstrap CIs
+ML / Data Science | Cold-start music classifier under a leakage-controlled
+evaluation protocol with artist-cluster bootstrap CIs
 
 ## Three bullets
 
-- Built a cold-start music recommender on a 1.16M-track Spotify corpus.
-  FAISS `IndexFlatIP` retrieval over L2-normalized audio embeddings hit
-  Recall@10 of 0.0186 against random's 0.000127 across 7,645 evaluable
-  queries, an 11.6x lift with non-overlapping 95% bootstrap CIs
-  (`outputs/tables/recommender_metrics.csv`).
-- Trained and tuned a five-model panel (logistic, random forest,
-  LightGBM, XGBoost, genre-prior baseline) on 81,987 popularity-labeled
-  tracks with 30-trial Optuna search and 5-fold CV. LightGBM reached
-  ROC-AUC 0.711 (95% CI 0.702, 0.721); reported the negative result
-  that a one-hot genre prior at 0.852 beats every audio-only model by
-  about 14 AUC points (`outputs/tables/metrics.csv`).
-- Calibrated LightGBM probabilities with 5-fold isotonic CV, cutting
-  Brier from 0.2050 to 0.1502, a 27% relative reduction with the
-  reliability curve tracking the diagonal
-  (`outputs/tables/calibration.json`). Ranked features across SHAP,
-  30-repeat permutation, and bootstrapped logistic coefficients;
-  documented the 2-of-3 overlap and the loudness vs instrumentalness
-  split in MODEL.md.
+- Built a cold-start popularity classifier on a 1.16M-track Spotify
+  corpus and measured it under an artist-grouped split (no artist on
+  both sides of the fence), the popularity cutoff fit on the train
+  fence only, and the decision threshold frozen on validation. LightGBM
+  reached ROC-AUC 0.692 (95% CI 0.675, 0.708) on 16,805 held-out tracks
+  across 6,349 unseen artists (`outputs/tables/metrics.csv`).
+- Quantified label and split leakage directly rather than asserting it:
+  a paired artist-cluster bootstrap on identical test rows put the
+  random-split model's advantage from having seen an artist's other
+  tracks at +0.090 AUC for LightGBM and +0.257 for random forest, with
+  logistic at +0.001 (CI spans zero) because it cannot memorize timbre
+  (`outputs/tables/split_delta.csv`). Reported the negative result that
+  a one-hot genre prior at 0.836 still beats every audio-only model.
+- Hardened the protocol with an invariant test suite that runs as a
+  blocking CI job: artist-disjoint splits, a train-only label cutoff,
+  a frozen F1 threshold, and artist-cluster resampling are each pinned
+  by a test that is red against the old code and green against the new
+  (`tests/test_invariants.py`). Hyperparameters are tuned once with a
+  grouped inner CV and frozen to `configs/hparams.json` so the
+  split-arm comparison isolates the split alone.
 
 ## LinkedIn blurb (about 60-90 words)
 
-audio-priors (v0.1.0) asks how far Spotify's 10 audio features carry
-cold-start music recommendation. I trained five classifiers on 81,987
-labeled tracks (LightGBM at ROC-AUC 0.711, 95% CI 0.702 to 0.721),
-calibrated probabilities with isotonic CV (Brier 0.205 to 0.150, a 27%
-relative cut), and built a FAISS retriever that beats random Recall@10
-by 11.6x across 7,645 queries with non-overlapping bootstrap CIs. The
-honest finding: audio alone cannot beat a one-hot genre prior at
-0.852, which reframes the work as a cold-start ceiling study.
+audio-priors asks how far Spotify's 10 audio features carry cold-start
+popularity prediction, and answers it under a protocol built to resist
+leakage: an artist-grouped split, a train-only label cutoff, a frozen
+decision threshold, and artist-cluster bootstrap CIs. LightGBM reaches
+ROC-AUC 0.692 (95% CI 0.675, 0.708) on unseen artists; a paired
+bootstrap shows a random split would have inflated that by 0.090 AUC
+through artist memorization. The honest finding stands: audio alone
+does not beat a one-hot genre prior at 0.836. An invariant suite gates
+every claim in CI.
 
 ## Interview talking points
 
-1. **LightGBM ROC-AUC 0.711, 95% CI (0.702, 0.721)** from 1,000
-   bootstrap resamples on the 16,398-row hold-out, and why the
-   non-overlapping CI against the 0.852 genre-prior baseline is the
-   load-bearing comparison
-   (`outputs/tables/metrics.csv`).
-2. **Isotonic recalibration cut Brier from 0.2050 to 0.1502** on the
-   LightGBM head. The raw probabilities sat well above the diagonal
-   because `class_weight='balanced'` upweights minorities during
-   training; isotonic shrinks them back toward observed positive rates
-   without changing AUC ranking (`outputs/tables/calibration.json`).
-3. **FAISS IndexFlatIP over L2-normalized features beat random by
-   11.6x on Recall@10** (0.0186 vs 0.000127) across 7,645 queries.
-   Paired-bootstrap NDCG@10 of audio + genre over genre-only is
-   +0.00632 (95% CI 0.00203, 0.01057), strictly positive even where
-   the independent CIs overlap
-   (`outputs/tables/recommender_metrics.csv`).
-4. **Feature attribution sits at 2 of 3 overlap** across methods: SHAP
-   picks energy / acousticness / instrumentalness, permutation picks
-   loudness / acousticness / energy. The loudness vs instrumentalness
-   split is consistent with loudness and energy being correlated, so
-   permutation rewards the redundant channel
-   (MODEL.md, `outputs/tables/permutation_importance.csv`).
-5. **Standardized logistic coefficients with 200-resample bootstrap
-   CIs**: instrumentalness -0.397 (-0.420, -0.373), acousticness
-   -0.287 (-0.320, -0.256), liveness -0.264 (-0.287, -0.243). All
-   three negative and CIs exclude zero, so the sticky class is vocal,
+1. **The artist-memorization gap is measured, not assumed.** Scoring
+   the same grouped-test rows with both the grouped and random models
+   gives a paired artist-cluster bootstrap delta of +0.090 AUC for
+   LightGBM, +0.257 for random forest, +0.001 for logistic
+   (`outputs/tables/split_delta.csv`). The tree models were partly
+   fingerprinting artists; the grouped 0.692 is the figure that
+   survives.
+2. **Three leaks fixed in one protocol.** The label cutoff now fits on
+   the train fence only (was full-corpus), the split groups on artist
+   (was random), and the F1 threshold is frozen on validation (was the
+   test-set optimum). Each is pinned by an invariant test that is red
+   against the old code, so the fix cannot silently regress.
+3. **Why cluster bootstrap.** Tracks cluster by artist, so a row
+   bootstrap treats correlated rows as independent and reports a CI
+   that is too tight. The grouped arm resamples whole artists; the
+   random arm shows both so the difference is visible in
+   `metrics.csv` (artist-cluster CIs run a touch wider, as expected).
+4. **Hyperparameters frozen across arms.** If Optuna ran per arm, the
+   grouped-vs-random delta would absorb two hyperparameter sets. One
+   grouped search with a `GroupKFold` inner CV, frozen to
+   `configs/hparams.json` and refit read-only, keeps the delta about
+   the split.
+5. **Isotonic recalibration cut Brier from 0.2118 to 0.1614** on the
+   grouped LightGBM, a 24% reduction, with the reliability curve
+   tracking the diagonal (`outputs/tables/calibration.json`). Raw Brier
+   is not yet comparable across models with different imbalance
+   handling; that recalibration is a tracked follow-up.
+6. **Standardized logistic coefficients with 200-resample bootstrap
+   CIs**: instrumentalness -0.380 (-0.403, -0.357), acousticness
+   -0.282 (-0.312, -0.252), liveness -0.245 (-0.270, -0.223). All three
+   negative with CIs excluding zero, so the sticky class is vocal,
    produced, and studio-recorded
    (`outputs/tables/logistic_coefficients.csv`).
-6. **Per-genre AUC ranges from 0.29 (`study`) to 0.97 (`mpb`)** across
-   105 genres with n>=20. The extremes have very small n_positive and
-   are flagged in MODEL.md as needing Wilson/DeLong CIs and a
-   Benjamini-Hochberg correction (tracked as a follow-up issue).
-7. **Released v0.1.0 across ten phase-scoped PRs** with conventional
-   commits and a `git filter-repo` authorship pass. Demo boots in
-   under five seconds with warm caches and serves per-query inference
-   in under one second.
+7. **Ranking claims use a paired bootstrap, not CI overlap.** Two
+   independent CIs overlapping does not settle a paired comparison;
+   `paired_cluster_bootstrap_delta` evaluates both models on identical
+   resamples so between-sample variance cancels. The same machinery
+   backs the arm delta and any model-vs-model claim.
 
 ## Risks the recruiter will probe (and how to answer)
 
 - **"Is your train/test split leaking artist-level information?"**
-  Yes. The current split is stratified random with no group key, so
-  the same artist's tracks can sit in both folds and the audio model
-  partly learns artist fingerprints. The 0.711 number is the
-  random-split figure, not a true cold-start figure. Fix on deck:
-  `StratifiedGroupKFold` on `artist_name`, reported under both random
-  and grouped splits, with the grouped number as the cold-start
-  headline. (Open issue.)
+  It was, in v0.1. It now reports both an artist-grouped split (the
+  headline) and a random split, with `GroupShuffleSplit` on
+  `artist_name` keeping every artist on one side of every fence,
+  including the validation carve. The gap is measured: +0.090 AUC for
+  LightGBM on a paired artist-cluster bootstrap. The shipped figure is
+  the grouped 0.692, and a test pins the disjointness. (Fixed, #20.)
 - **"Did you fit the popularity quantile on the full corpus before
-  splitting?"** Yes. `sticky_top_q` fits on the full labeled corpus,
-  which leaks test-set popularity into the label threshold. The right
-  move is to fit the threshold on train only and apply it to test.
-  Rerunning metrics under that protocol is the next change. (Open
-  issue.)
+  splitting?"** It did in v0.1. Now `sticky_top_q_train_threshold`
+  fits the cutoff on the train fence only and applies the frozen
+  scalar to every slice, so test popularity never moves its own label.
+  A test constructs a corpus where the train-only and full-corpus
+  cutoffs disagree and asserts the pipeline uses the train-only one.
+  (Fixed, #21.)
 - **"Your F1 is at the F1-optimal threshold on the test set. Is that
-  an in-sample upper bound?"** Yes. The F1 column is an oracle
-  threshold and the bootstrap CI estimates variance of that oracle,
-  not of a deployable policy. The honest fix is to pick the threshold
-  on a validation slice of train, freeze it, then bootstrap F1 at the
-  fixed threshold. F1 at threshold 0.5 will sit alongside as the
-  fixed-policy number. (Open issue.)
+  an in-sample upper bound?"** It was. The deployable column is now F1
+  at a threshold frozen on the validation slice, with F1@0.5 beside it;
+  the oracle F1 stays one release as a single labeled upper bound to
+  quantify the old column. Freezing cost under one F1 point. A test
+  makes a re-optimizing implementation fail on separable data.
+  (Fixed, #22.)
 - **"You compare Brier across models with different class-imbalance
-  handling. Is that apples-to-apples?"** No. Logistic / LGBM / RF use
-  `class_weight='balanced'` and XGB uses `scale_pos_weight`, which
-  distort the probability scales differently. Either recalibrate
-  everything with the same isotonic CV before reporting Brier, or
-  drop the raw Brier column. The **0.150 post-calibration LightGBM
-  Brier is the comparable number**.
-- **"Per-genre extremes like mpb 0.97 and study 0.29: how many
-  positives back those?"** A handful. The current filter is only
-  n>=20 with no `min_positive` constraint, so the extremes are
-  essentially single-rank statistics. Fix: `min_positive>=10` plus
-  Wilson/DeLong per-genre CIs and Benjamini-Hochberg over 105 tests,
-  and only flag genres whose corrected CI excludes 0.5. (Open issue.)
+  handling. Is that apples-to-apples?"** Not yet. Logistic / LGBM / RF
+  use `class_weight='balanced'` and XGB uses `scale_pos_weight`, which
+  distort the probability scales differently, so the raw Brier column
+  is not comparable across models. The fix is a uniform OOF isotonic
+  recalibration (grouped folds in the grouped arm) before any Brier
+  comparison; the per-model calibrated LightGBM Brier of 0.161 is the
+  defensible number today. (Tracked, #24.)
+- **"Per-genre extremes: how many positives back those?"** A handful,
+  and the card says so. The top and bottom genres rest on near-
+  degenerate class balance (comedy 4 positives, pop-film 3 negatives),
+  so they are descriptive only. The fix is `min_positive>=10` and
+  `min_negative>=10` floors plus per-genre bootstrap CIs and a
+  Benjamini-Hochberg correction, flagging only genres whose corrected
+  interval excludes 0.5. (Tracked, #23.)
 - **"What is the cold-start signal actually doing if a one-hot genre
   baseline beats it by 14 AUC points?"** That is the contribution.
-  The genre prior is the strong baseline you reach for when genre is
-  known; the audio model is the prior you ship when it is not. The
-  0.711 number is the ceiling of pre-behavior audio features, and the
-  11.6x retrieval lift over random is the deployable signal in the
-  cold-start setting.
+  The genre prior at 0.836 is the strong baseline you reach for when
+  genre is known; the grouped audio model at 0.692 is the prior you
+  ship when it is not, and it is honest about an artist the model has
+  never seen. The gap is the measured value of categorical genre
+  information beyond what audio summaries recover.
