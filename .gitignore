@@ -20,6 +20,8 @@ outputs/tables/*
 !outputs/tables/.gitkeep
 !outputs/tables/metrics.csv
 !outputs/tables/per_genre_auc.csv
+!outputs/tables/split_delta.csv
+!outputs/tables/legacy_metrics.csv
 
 # experiment tracking
 mlruns/
