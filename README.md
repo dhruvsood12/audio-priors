@@ -44,7 +44,7 @@ Streaming services need a recommendation signal for tracks that have no behavior
 
 ## What it does
 
-Three pipelines build on a single 1.16-million-track corpus combining maharshipandya, rodolfofigueroa, and paradisejoy Kaggle datasets. The modeling pipeline trains a five-model panel (genre prior, logistic, random forest, LightGBM, XGBoost) under both protocol arms with hyperparameters tuned once on grouped data and frozen to [`configs/hparams.json`](configs/hparams.json). The interpretability pipeline runs SHAP, permutation importance, logistic CIs, and isotonic recalibration under the same grouped protocol; Brier improves from 0.212 to 0.161 after calibration, a 24% relative reduction. The recommender pipeline builds a FAISS `IndexFlatIP` over L2-normalized audio features; its evaluation still runs under the v0.1 protocol and is being reworked ([#25](https://github.com/dhruvsood12/audio-priors/issues/25)).
+Three pipelines build on a single 1.16-million-track corpus combining maharshipandya, rodolfofigueroa, and paradisejoy Kaggle datasets. The modeling pipeline trains a five-model panel (genre prior, logistic, random forest, LightGBM, XGBoost) under both protocol arms with hyperparameters tuned once on grouped data and frozen to [`configs/hparams.json`](configs/hparams.json). The interpretability pipeline runs SHAP, permutation importance, logistic CIs, and isotonic recalibration under the same grouped protocol; Brier improves from 0.212 to 0.161 after calibration, a 24% relative reduction. The recommender pipeline builds a FAISS `IndexFlatIP` over L2-normalized audio features and evaluates retrieval under the same artist-grouped protocol, dropping the query artist's tracks from the candidate set so audio is not scored for matching the query to itself.
 
 ## Reproduce
 
@@ -88,19 +88,25 @@ LightGBM on the grouped-arm test set, top and bottom genres by audio predictabil
 
 ## Recommender results
 
-**Protocol note:** the retrieval tables below still run under the v0.1 protocol (full-corpus label cutoff, random query split, `(same_genre OR same_artist) AND sticky` relevance, no exclusion of the query artist's tracks from the candidates). The classifier results above show artist effects are large, so treat the audio rows here as upper bounds until the artist-disjoint rework lands ([#25](https://github.com/dhruvsood12/audio-priors/issues/25)).
+Cold-start retrieval: given a query track with no listener history, return K similar tracks by audio cosine. The honest configuration uses an artist-grouped query split, genre-only relevance (`same_genre AND sticky`), and drops the query artist's own tracks from both the candidates and the relevance denominator, so audio is not credited for matching the query to itself. The headline arm, 7,809 evaluable queries, artist-cluster bootstrap:
 
-7,645 evaluable queries from the 90/10 split. Bootstrap 1,000 resamples.
+| Baseline | Recall@10 | 95% CI | NDCG@10 |
+|---|---|---|---|
+| **genre_only** | **0.0182** | (0.0173, 0.0194) | 0.2350 |
+| audio_genre | 0.0180 | (0.0170, 0.0192) | **0.2396** |
+| audio_only | 0.00126 | (0.00109, 0.00143) | 0.0165 |
+| popularity_only | 0.000618 | (0.00041, 0.00090) | 0.00852 |
+| random | 0.000150 | (0.00011, 0.00019) | 0.00217 |
 
-| Baseline | Recall@10 | NDCG@10 |
+Audio-only KNN beats random by **8.4x** on Recall@10 under this protocol. How much of the v0.1 11.6x was artist self-matching? The three-config comparison for audio_only Recall@10, all from [`outputs/tables/recommender_metrics.csv`](outputs/tables/recommender_metrics.csv):
+
+| Configuration | audio_only Recall@10 | lift vs random |
 |---|---|---|
-| audio_genre | 0.0186 | **0.2312** |
-| genre_only | 0.0180 | 0.2249 |
-| audio_only | 0.00147 | 0.0208 |
-| popularity_only | 0.000394 | 0.00626 |
-| random | 0.000127 | 0.00187 |
+| v0.1 (random split, genre-or-artist relevance, no exclusion) | 0.00147 | 11.6x |
+| random split + artist excluded + genre-only | 0.00140 | 9.5x |
+| **artist-grouped + artist excluded + genre-only** | **0.00126** | **8.4x** |
 
-Under that legacy protocol, audio-only KNN reads 11.6x random on Recall@10, and audio + genre beats genre-only on a paired-bootstrap NDCG@10 difference of +0.00632 (95% CI 0.00203, 0.01057).
+The retrieval artist effect is real but modest, unlike the classifier (where grouping cost 0.090 AUC): same-genre matches dominate the relevance set, so removing artist self-matches trims the audio lift by about 15% rather than collapsing it. Closes [#25](https://github.com/dhruvsood12/audio-priors/issues/25).
 
 ## Streamlit demo
 
