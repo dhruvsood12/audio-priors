@@ -254,35 +254,46 @@ recommender stages.
 
 ## Retrieval metrics
 
-**Protocol note:** the retrieval evaluation still runs under the v0.1
-protocol (full-corpus label cutoff, random 90/10 query split,
-`(R.genre == Q.genre OR R.artist == Q.artist) AND R.sticky` relevance,
-no exclusion of the query artist's own tracks from the candidates). The
-classifier results above show artist effects are large, so the audio
-rows here are upper bounds: nothing yet stops a query's own artist from
-filling the top of the candidate list and counting as relevant through
-the `same_artist` clause. The artist-disjoint rework (artist-grouped
-query split, genre-only relevance variant, query-artist exclusion with
-a coherent denominator) is tracked in issue #25 and lands in the next
-retrieval PR. The numbers below are retained as the v0.1 baseline.
+Three configurations isolate how much of the v0.1 audio retrieval lift
+was the query artist matching itself. All write to
+`outputs/tables/recommender_metrics.csv`.
 
-90/10 stratified hold-out (`random_state=42`), 7,645 evaluable queries.
-Bootstrap 1,000 percentile resamples over queries.
+- **legacy**: the v0.1 protocol unchanged (full-corpus label, stratified
+  random 90/10 split, `(same_genre OR same_artist) AND sticky`
+  relevance, no exclusion). Reproduces the v0.1 table.
+- **random + excluded**: random split, but the query artist's tracks
+  leave both the candidate set and the relevance denominator, and
+  relevance is genre-only. Holds the split fixed so the drop isolates
+  artist self-matching.
+- **grouped + excluded**: the honest cold-start figure. Artist-grouped
+  query split, genre-only relevance, query-artist exclusion, and an
+  artist-cluster bootstrap over query artists.
+
+Headline (grouped + excluded), 7,809 evaluable queries:
 
 | Baseline | Recall@10 | 95% CI | NDCG@10 |
 |---|---|---|---|
-| **audio_genre** (audio KNN within genre) | **0.0186** | (0.0176, 0.0197) | **0.2312** |
-| audio_genre_weighted | 0.0182 | (0.0171, 0.0194) | 0.2300 |
-| genre_only | 0.0180 | (0.0169, 0.0190) | 0.2249 |
-| audio_only | **0.00147** | (0.00129, 0.00166) | 0.0208 |
-| audio_only_weighted | 0.00113 | (0.00099, 0.00129) | 0.0173 |
-| popularity_only | 0.000394 | (0.000315, 0.000484) | 0.00626 |
-| random | 0.000127 | (0.000096, 0.000158) | 0.00187 |
+| **genre_only** | **0.0182** | (0.0173, 0.0194) | 0.2350 |
+| audio_genre (audio KNN within genre) | 0.0180 | (0.0170, 0.0192) | **0.2396** |
+| audio_only | 0.00126 | (0.00109, 0.00143) | 0.0165 |
+| popularity_only | 0.000618 | (0.00041, 0.00090) | 0.00852 |
+| random | 0.000150 | (0.00011, 0.00019) | 0.00217 |
 
-Under that legacy protocol, audio-only Recall@10 reads 11.6x random,
-and audio + genre over genre-only gives a paired-bootstrap NDCG@10
-difference of +0.00632 (95% CI +0.00203, +0.01057). Full numbers in
-`outputs/tables/recommender_metrics.csv`.
+audio_only Recall@10 across the three configurations: 0.00147 (legacy,
+11.6x random) to 0.00140 (random + excluded, 9.5x) to 0.00126 (grouped
++ excluded, 8.4x). The artist effect on retrieval is real but modest,
+in contrast to the classifier where grouping cost 0.090 AUC: same-genre
+matches dominate the relevance set, so removing artist self-matches
+trims the audio lift by about 15% rather than collapsing it. The
+query-side bootstrap clusters by artist in the grouped arm, since one
+artist contributes several correlated queries there.
+
+A note on the within-genre comparison: genre_only and audio_genre sit
+within each other's CIs at Recall@10. audio_genre leads on NDCG@10
+(0.2396 vs 0.2350), meaning audio ordering helps rank the genre-matched
+sticky tracks, but the Recall@10 gap is not separable at this sample.
+The honest reading is that audio adds ranking quality within a genre,
+not retrieval coverage beyond it.
 
 ## Training procedure
 
@@ -300,8 +311,9 @@ difference of +0.00632 (95% CI +0.00203, +0.01057). Full numbers in
 ## Known fix-in-progress items
 
 Resolved in v0.2.0 (this card): artist-grouped split (#20), train-only
-popularity cutoff (#21), frozen F1 threshold (#22). Remaining, tracked
-as GitHub issues and disclosed in
+popularity cutoff (#21), frozen F1 threshold (#22), artist-disjoint
+retrieval evaluation (#25). Remaining, tracked as GitHub issues and
+disclosed in
 [docs/RESUME_BULLETS.md](docs/RESUME_BULLETS.md):
 
 - Per-genre AUC: `min_positive>=10` and `min_negative>=10` floors plus
@@ -310,7 +322,6 @@ as GitHub issues and disclosed in
 - Like-for-like Brier: recalibrate every model with the same OOF
   isotonic procedure (grouped folds in the grouped arm) before any
   cross-model Brier comparison (issue #24).
-- Artist-disjoint retrieval evaluation (issue #25).
 
 ## Contact
 

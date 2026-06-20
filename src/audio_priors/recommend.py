@@ -81,6 +81,9 @@ class TrainingCorpus:
     ``X`` is the feature matrix (already L2-normalized). ``genre`` and
     ``artist`` are aligned arrays. ``popularity_rank`` is descending so
     ``popularity_rank[:k]`` gives the K most popular tracks.
+    ``max_artist_count`` is the largest number of tracks any single
+    artist holds; fetching ``k + max_artist_count`` candidates and then
+    dropping one artist's tracks always leaves at least ``k``.
     """
 
     X: np.ndarray
@@ -91,6 +94,8 @@ class TrainingCorpus:
     index: faiss.Index
     genre_to_indices: dict[str, np.ndarray]
     genre_to_index: dict[str, faiss.Index]
+    artist_to_indices: dict[str, np.ndarray]
+    max_artist_count: int
 
 
 def build_corpus(
@@ -137,6 +142,14 @@ def build_corpus(
         sub_index.add(sub_X)
         genre_to_index[g] = sub_index
 
+    # Per-artist row lookup, and the largest single-artist track count, used
+    # by the artist-disjoint retrieval path to size the over-fetch.
+    artist_to_indices: dict[str, np.ndarray] = {}
+    uniq_artists, counts = np.unique(artist, return_counts=True)
+    for a in uniq_artists:
+        artist_to_indices[a] = np.where(artist == a)[0]
+    max_artist_count = int(counts.max()) if len(counts) else 0
+
     return TrainingCorpus(
         X=X,
         genre=genre,
@@ -146,17 +159,57 @@ def build_corpus(
         index=index,
         genre_to_indices=genre_to_indices,
         genre_to_index=genre_to_index,
+        artist_to_indices=artist_to_indices,
+        max_artist_count=max_artist_count,
     )
+
+
+RELEVANCE_MODES = ("genre_or_artist", "genre_only")
 
 
 def compute_relevance(
     query_genre: str,
     query_artist: str,
     corpus: TrainingCorpus,
+    mode: str = "genre_or_artist",
+    exclude_query_artist: bool = False,
 ) -> np.ndarray:
-    """Boolean mask over the training corpus for one query."""
+    """Boolean mask over the training corpus for one query.
 
-    return ((corpus.genre == query_genre) | (corpus.artist == query_artist)) & corpus.sticky
+    ``mode`` is ``"genre_or_artist"`` (the v0.1 relevance,
+    ``(same_genre OR same_artist) AND sticky``) or ``"genre_only"``
+    (``same_genre AND sticky``, which stops crediting audio for matching
+    the query's own artist). With ``exclude_query_artist`` the query
+    artist's tracks also leave the relevance denominator, keeping it
+    coherent with an artist-disjoint candidate set; otherwise Recall@K
+    would count relevant items the retriever is forbidden to return.
+    """
+
+    if mode == "genre_only":
+        rel = (corpus.genre == query_genre) & corpus.sticky
+    elif mode == "genre_or_artist":
+        rel = ((corpus.genre == query_genre) | (corpus.artist == query_artist)) & corpus.sticky
+    else:
+        raise ValueError(f"mode must be one of {RELEVANCE_MODES}, got {mode!r}")
+    if exclude_query_artist:
+        rel = rel & (corpus.artist != query_artist)
+    return rel
+
+
+def drop_query_artist(
+    retrieved: np.ndarray,
+    query_artist: str,
+    corpus: TrainingCorpus,
+    k: int,
+) -> np.ndarray:
+    """Order-preserving removal of the query artist's tracks, then truncate.
+
+    Keeps the retriever's ranking intact while guaranteeing no candidate
+    shares the query's artist.
+    """
+
+    kept = retrieved[corpus.artist[retrieved] != query_artist]
+    return kept[:k]
 
 
 def recall_at_k(retrieved_indices: np.ndarray, relevance_mask: np.ndarray, k: int) -> float:
@@ -178,10 +231,14 @@ def ndcg_at_k(retrieved_indices: np.ndarray, relevance_mask: np.ndarray, k: int)
         return float("nan")
     top_k = retrieved_indices[:k]
     gains = relevance_mask[top_k].astype(float)
-    discounts = np.log2(np.arange(2, k + 2))
+    # Discount by the actual retrieved length: an underflowing candidate list
+    # (fewer than k items survived artist exclusion) is scored over the
+    # positions it filled, while the ideal still spans min(k, n_total) slots,
+    # so a short list is penalized rather than silently rescaled.
+    discounts = np.log2(np.arange(2, len(top_k) + 2))
     dcg = float((gains / discounts).sum())
     ideal_k = min(k, n_total)
-    idcg = float((1.0 / discounts[:ideal_k]).sum())
+    idcg = float((1.0 / np.log2(np.arange(2, ideal_k + 2))).sum())
     if idcg == 0:
         return 0.0
     return dcg / idcg
@@ -248,8 +305,10 @@ def audio_baseline(
     as the corpus (standardized + L2-normalized)."""
 
     q = query_vec.reshape(1, -1).astype(np.float32)
-    _, idx = corpus.index.search(q, k)
-    return idx[0]
+    k_eff = min(k, corpus.index.ntotal)
+    _, idx = corpus.index.search(q, k_eff)
+    out = idx[0]
+    return out[out >= 0]  # strip FAISS -1 padding if k_eff somehow over-asks
 
 
 def audio_genre_baseline(
@@ -272,10 +331,11 @@ def audio_genre_baseline(
     out = sub_idx[sub_top[0]]
     if len(out) < k:
         # Pad from global retrieval, skipping ones already in out.
-        _, global_top = corpus.index.search(q, k * 5)
+        k_global = min(corpus.index.ntotal, k * 5)
+        _, global_top = corpus.index.search(q, k_global)
         seen = set(out.tolist())
         for j in global_top[0]:
-            if int(j) in seen:
+            if int(j) < 0 or int(j) in seen:
                 continue
             out = np.concatenate([out, [int(j)]])
             if len(out) >= k:
@@ -301,25 +361,59 @@ def evaluate_baselines(
     ndcg_k: int = 10,
     baselines: dict[str, Callable[..., np.ndarray]] | None = None,
     rng_seed: int = 42,
+    relevance_mode: str = "genre_or_artist",
+    exclude_query_artist: bool = False,
+    fetch_buffer: int = 64,
 ) -> pd.DataFrame:
-    """Per-query metrics for every baseline. One row per (baseline, query)."""
+    """Per-query metrics for every baseline. One row per (baseline, query).
+
+    With ``exclude_query_artist`` the query artist's tracks are dropped
+    from every candidate list (order-preserving) and from the relevance
+    denominator, so audio is not credited for matching the query's own
+    artist. The over-fetch is ``max_k + max(fetch_buffer,
+    max_artist_count)`` so dropping one artist cannot underflow on the
+    full corpus; on a corpus too small for that (toy data, sparse
+    genres) the result carries an ``underflow`` flag. With exclusion off
+    the call path matches v0.1 exactly (same fetch size, same RNG draws)
+    so the legacy table reproduces.
+    """
 
     if baselines is None:
         baselines = BASELINES
+    if relevance_mode not in RELEVANCE_MODES:
+        raise ValueError(f"relevance_mode must be one of {RELEVANCE_MODES}, got {relevance_mode!r}")
     X_query_n = l2_normalize(X_query)
     qg = query_genres.fillna("__unknown__").astype(str).to_numpy()
     qa = query_artists.fillna("__unknown__").astype(str).to_numpy()
     rng = np.random.default_rng(rng_seed)
+    n = len(corpus.genre)
 
-    rows: list[dict[str, float | str]] = []
+    rows: list[dict[str, Any]] = []
     max_k = max(*k_list, ndcg_k)
+    fetch_k = (
+        min(n, max_k + max(fetch_buffer, corpus.max_artist_count))
+        if exclude_query_artist
+        else max_k
+    )
     for i in range(len(X_query_n)):
-        rel = compute_relevance(qg[i], qa[i], corpus)
+        rel = compute_relevance(
+            qg[i], qa[i], corpus, mode=relevance_mode, exclude_query_artist=exclude_query_artist
+        )
         if rel.sum() == 0:
             continue
         for name, fn in baselines.items():
-            top = fn(X_query_n[i], qg[i], qa[i], corpus, max_k, rng)
-            row: dict[str, Any] = {"baseline": name, "query_idx": int(i)}
+            cand = fn(X_query_n[i], qg[i], qa[i], corpus, fetch_k, rng)
+            if exclude_query_artist:
+                top = drop_query_artist(cand, qa[i], corpus, max_k)
+            else:
+                top = cand[:max_k]
+            underflow = len(top) < max_k
+            row: dict[str, Any] = {
+                "baseline": name,
+                "query_idx": int(i),
+                "query_artist": qa[i],
+                "underflow": bool(underflow),
+            }
             for k in k_list:
                 row[f"recall_at_{k}"] = recall_at_k(top, rel, k)
             row[f"ndcg_at_{ndcg_k}"] = ndcg_at_k(top, rel, ndcg_k)
@@ -333,26 +427,53 @@ def summarize_with_ci(
     n_resamples: int = 1000,
     seed: int = 42,
     alpha: float = 0.05,
+    group_col: str | None = None,
 ) -> pd.DataFrame:
-    """Per-baseline point estimates with bootstrap CI over queries."""
+    """Per-baseline point estimates with bootstrap CI over queries.
+
+    With ``group_col`` the bootstrap resamples whole groups (e.g. query
+    artists) rather than individual queries, the right unit when queries
+    cluster: under an artist-grouped query split, one artist contributes
+    several correlated queries, and a per-query bootstrap would report a
+    CI that is too tight. ``bootstrap_unit`` is recorded per row.
+    """
 
     rng = np.random.default_rng(seed)
+    unit = "artist" if group_col else "query"
     out_rows: list[dict[str, Any]] = []
     for name, group in per_query.groupby("baseline"):
-        row: dict[str, Any] = {"baseline": name, "n_queries": len(group)}
+        row: dict[str, Any] = {
+            "baseline": name,
+            "n_queries": len(group),
+            "bootstrap_unit": unit,
+        }
         for metric in metric_cols:
-            vals = group[metric].dropna().to_numpy()
+            sub = group[[metric] + ([group_col] if group_col else [])].dropna(subset=[metric])
+            vals = sub[metric].to_numpy()
             if len(vals) == 0:
                 row[metric] = float("nan")
                 row[f"{metric}_ci_lower"] = float("nan")
                 row[f"{metric}_ci_upper"] = float("nan")
                 continue
             point = float(vals.mean())
-            n = len(vals)
             samples = np.empty(n_resamples, dtype=float)
-            for i in range(n_resamples):
-                idx = rng.integers(0, n, size=n)
-                samples[i] = vals[idx].mean()
+            if group_col:
+                codes = sub[group_col].astype("category").cat.codes.to_numpy()
+                order = np.argsort(codes, kind="stable")
+                vals_sorted = vals[order]
+                codes_sorted = codes[order]
+                counts = np.bincount(codes_sorted)
+                starts = np.concatenate([np.zeros(1, dtype=np.int64), np.cumsum(counts)[:-1]])
+                n_groups = len(counts)
+                for i in range(n_resamples):
+                    gidx = rng.integers(0, n_groups, size=n_groups)
+                    picks = [vals_sorted[starts[g] : starts[g] + counts[g]] for g in gidx]
+                    samples[i] = float(np.concatenate(picks).mean())
+            else:
+                n = len(vals)
+                for i in range(n_resamples):
+                    idx = rng.integers(0, n, size=n)
+                    samples[i] = vals[idx].mean()
             row[metric] = point
             row[f"{metric}_ci_lower"] = float(np.percentile(samples, 100.0 * alpha / 2.0))
             row[f"{metric}_ci_upper"] = float(np.percentile(samples, 100.0 * (1.0 - alpha / 2.0)))

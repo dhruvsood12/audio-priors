@@ -22,6 +22,7 @@ outputs/tables/*
 !outputs/tables/per_genre_auc.csv
 !outputs/tables/split_delta.csv
 !outputs/tables/legacy_metrics.csv
+!outputs/tables/recommender_metrics.csv
 
 # experiment tracking
 mlruns/
